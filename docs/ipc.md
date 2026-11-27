@@ -388,16 +388,22 @@ enum Theme { System, Light, Dark }
 
 | 命令 | 入参 | 出参 |
 | --- | --- | --- |
-| `lookup_sources` | — | `LookupSourcesResult` |
-| `lookup_query` | `LookupQuery{ mode, keyword, exact, sourceIds, limit }` | `LookupResult` |
-| `lookup_rebuild` | — | `number`（重建的索引文件数） |
-| `symbol_query` | `{ keyword, limit? }` | `SymbolHit[]` |
+| `lookup_sources` | `{ schemaId? }` | `LookupSourcesResult` |
+| `lookup_query` | `LookupQuery{ mode, keyword, exact, sourceIds, limit }` + `{ schemaId? }` | `LookupResult` |
+| `lookup_rebuild` | `{ schemaId? }` | `number`（重建的索引文件数） |
+| `symbol_query` | `{ keyword, limit?, schemaId? }` | `SymbolHit[]` |
 
 约定：
 
 - 只读：不写任何文件，也不触发部署；
-- 索引范围是**用户目录**下的 `*.dict.yaml` 与 `*.txt`（排除 `build/`、`sync/`、`*.bak`），
-  系统预设不纳入，避免几十 MB 常驻内存；
+- **按方案取词表**：`schemaId` 指定输入法方案（缺省用当前激活方案，`"*"` 表示全部文件）。
+  一个方案的词表 = 主词典 + 其 `import_tables` 递归展开 + 该方案的个人词条文件，
+  因此小鹤音形拿到的是 `xhup_dicts/*`（含 `xhup.primary`、`xhup.ok` 等），
+  小鹤双拼拿到的是主词典 + `custom_phrase_double.txt`，互不混入；
+- 每个方案一份缓存，首次查询时构建，`lookup_rebuild` 可强制重建；
+- 系统预设目录不纳入（只读用户目录），避免几十 MB 常驻内存；
+- `import_tables` 的名字常带子目录与点号（`xhup_dicts/xhup.user.top`），
+  解析时是**追加** `.dict.yaml` 而不是替换扩展名；
 - 相同（文本, 编码）在多文件中出现时合并为一条，`sources` 列出全部来源；
 - `rank`：0 完全匹配 / 1 前缀 / 2 包含；
 - 符号表来源是系统 `symbols.yaml` + 用户 `symbols.yaml` + 各方案 `punctuator`，同名表后者覆盖前者。

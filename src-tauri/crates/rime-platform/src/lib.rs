@@ -253,7 +253,7 @@ fn dict_yaml_candidates(user_dir: &Path, user_dict: &str) -> Vec<PathBuf> {
 }
 
 /// 解析 dict.yaml 头部 `import_tables` 列表。
-fn parse_import_tables(text: &str) -> Vec<String> {
+pub(crate) fn parse_import_tables(text: &str) -> Vec<String> {
     let mut out = Vec::new();
     let mut in_imports = false;
     for line in text.lines() {

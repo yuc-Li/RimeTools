@@ -388,13 +388,26 @@ export interface LookupSourceSummary {
   error: string | null;
 }
 
+/** 反查页可选的方案（输入法）*/
+export interface LookupSchemeOption {
+  schemaId: string;
+  name: string;
+  isActive: boolean;
+  isDoublePinyin: boolean;
+}
+
 export interface LookupSourcesResult {
+  /** 实际使用的方案 id；`*` 表示「全部文件」兜底 */
+  schemaId: string;
+  schemaName: string;
   sources: LookupSourceSummary[];
   /** 参与符号查询的来源说明 */
   symbolSources: string[];
   /** 解析失败的来源数量 */
   failed: number;
   userDir: string;
+  /** 可切换的方案列表 */
+  schemes: LookupSchemeOption[];
 }
 
 /** 反查模式：按词查编码 / 按编码查词 */

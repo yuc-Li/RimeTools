@@ -10,7 +10,7 @@
 use std::path::{Path, PathBuf};
 
 use rime_core::lookup::{LookupEntry, LookupSource, SourceOrigin};
-use rime_core::types::FileFormat;
+use rime_core::types::{FileFormat, SchemeInfo};
 use rime_core::ParsedDict;
 
 /// 单个待加载的来源文件。
@@ -190,6 +190,126 @@ pub fn load(file: &SourceFile) -> LookupSource {
 /// 批量加载。
 pub fn load_all(files: &[SourceFile]) -> Vec<LookupSource> {
     files.iter().map(load).collect()
+}
+
+// ───────────────────────── 按方案收集词表 ─────────────────────────
+
+/// 一次扫描最多解析多少个文件（防御异常的 import_tables 递归）。
+const MAX_FILES_PER_SCHEME: usize = 64;
+/// import_tables 的最大递归深度。
+const MAX_IMPORT_DEPTH: usize = 4;
+
+/// 解析一个 import 名到实际文件路径。
+///
+/// `import_tables` 里写的是**不带扩展名的相对名**，且可能带子目录，
+/// 例如 `xhup_dicts/xhup.user.top` → `xhup_dicts/xhup.user.top.dict.yaml`。
+fn resolve_import(user_dir: &Path, name: &str) -> Option<PathBuf> {
+    let name = name.trim();
+    if name.is_empty() {
+        return None;
+    }
+    let base = user_dir.join(name);
+    let mut candidates = Vec::new();
+    if name.ends_with(".dict.yaml") || name.ends_with(".dict.yml") || name.ends_with(".yaml") {
+        candidates.push(base);
+    } else {
+        // 注意：必须**追加**扩展名，不能用 `with_extension`。
+        // `xhup_dicts/xhup.primary` 的 `.primary` 会被当成扩展名替换掉，
+        // 结果找成 `xhup_dicts/xhup.dict.yaml`，静默漏掉整张主码表。
+        candidates.push(PathBuf::from(format!("{}.dict.yaml", base.display())));
+        candidates.push(PathBuf::from(format!("{}.yaml", base.display())));
+        candidates.push(base);
+    }
+    candidates.into_iter().find(|p| p.is_file())
+}
+
+/// 按**方案**收集它实际用到的词表。
+///
+/// 规则（与 Rime 的加载顺序一致）：
+/// 1. 方案主词典（`translator/dictionary`）；
+/// 2. 主词典 `import_tables` 里的每一张表，递归展开；
+/// 3. 方案的个人词条文件（`managed_files`，如 custom_phrase / *.user.dict.yaml）。
+///
+/// 这样「小鹤音形」拿到的是 `xhup_dicts/*`（用户码表 + 主码表 + 次选…），
+/// 而不是把别的方案的词表混进来。
+pub fn scan_for_scheme(user_dir: &Path, scheme: &SchemeInfo) -> Vec<SourceFile> {
+    let mut out: Vec<SourceFile> = Vec::new();
+    let mut seen: std::collections::HashSet<PathBuf> = std::collections::HashSet::new();
+    let schema_id = Some(scheme.schema_id.clone());
+
+    let mut push_file = |path: PathBuf, format: FileFormat, out: &mut Vec<SourceFile>| {
+        if out.len() >= MAX_FILES_PER_SCHEME {
+            return;
+        }
+        let canonical = std::fs::canonicalize(&path).unwrap_or_else(|_| path.clone());
+        if !seen.insert(canonical) {
+            return;
+        }
+        out.push(SourceFile {
+            id: path.to_string_lossy().to_string(),
+            schema_id: schema_id.clone(),
+            path,
+            origin: SourceOrigin::User,
+            format,
+        });
+    };
+
+    // 1) 方案自己的受管文件（个人词条，最常用）
+    for managed in &scheme.managed_files {
+        if managed.path.is_file() {
+            push_file(managed.path.clone(), managed.format, &mut out);
+        }
+    }
+
+    // 2) 主词典 + import_tables（BFS）
+    //
+    // `SchemeInfo` 不带主词典名，需要回头读一遍方案文件（同一份文件，成本可忽略）。
+    let mut queue: Vec<(PathBuf, usize)> = Vec::new();
+    let schema_path = {
+        let yaml = user_dir.join(format!("{}.schema.yaml", scheme.schema_id));
+        let yml = user_dir.join(format!("{}.schema.yml", scheme.schema_id));
+        if yaml.is_file() {
+            Some(yaml)
+        } else if yml.is_file() {
+            Some(yml)
+        } else {
+            None
+        }
+    };
+    if let Some(path) = schema_path {
+        if let Ok(raw) = crate::parse_schema(&path) {
+            if let Some(dict) = raw.primary_dictionary {
+                if let Some(dict_path) = resolve_import(user_dir, &dict) {
+                    queue.push((dict_path, 0));
+                }
+            }
+        }
+    }
+
+    while let Some((path, depth)) = queue.pop() {
+        if !path.is_file() {
+            continue;
+        }
+        let before = out.len();
+        push_file(path.clone(), FileFormat::RimeDictYaml, &mut out);
+        // 已在集合里说明处理过（同时避免环）
+        if out.len() == before {
+            continue;
+        }
+        if depth >= MAX_IMPORT_DEPTH {
+            continue;
+        }
+        let Ok(text) = std::fs::read_to_string(&path) else {
+            continue;
+        };
+        for import in crate::parse_import_tables(&text) {
+            if let Some(child) = resolve_import(user_dir, &import) {
+                queue.push((child, depth + 1));
+            }
+        }
+    }
+
+    out
 }
 
 #[cfg(test)]

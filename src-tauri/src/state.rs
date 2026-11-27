@@ -31,8 +31,8 @@ pub struct AppState {
     pinyin: Mutex<Option<Arc<std::collections::HashMap<char, Vec<String>>>>>,
     /// 部署状态观察者（由 setup 注入，负责向 WebView emit `deploy://state`）
     deploy_observer: Mutex<Option<Arc<dyn Fn(&rime_core::types::DeployState) + Send + Sync>>>,
-    /// 反查缓存（用户目录词库 + 符号表），首次使用时惰性构建
-    lookup: Mutex<Option<crate::lookup_cache::SharedLookupCache>>,
+    /// 反查缓存：按方案 id 各存一份（首次使用时惰性构建）
+    lookup: Mutex<std::collections::HashMap<String, crate::lookup_cache::SharedLookupCache>>,
 }
 
 impl Default for AppState {
@@ -53,7 +53,7 @@ impl AppState {
             deploy: Mutex::new(None),
             pinyin: Mutex::new(None),
             deploy_observer: Mutex::new(None),
-            lookup: Mutex::new(None),
+            lookup: Mutex::new(std::collections::HashMap::new()),
         }
     }
 
@@ -112,6 +112,11 @@ impl AppState {
                 inner.stores.insert(id, store);
             }
         }
+    }
+
+    /// 全部已知方案（供反查页选择输入法）。
+    pub fn schemes(&self) -> Vec<SchemeInfo> {
+        self.lock().schemes.clone()
     }
 
     pub fn scheme(&self, schema_id: &str) -> Option<SchemeInfo> {
@@ -278,15 +283,29 @@ impl AppState {
 }
 
 impl AppState {
-    /// 取反查缓存（未构建时为 None）。
-    pub fn lookup_cache(&self) -> Option<crate::lookup_cache::SharedLookupCache> {
-        self.lookup.lock().ok().and_then(|guard| guard.clone())
+    /// 取指定方案的反查缓存（未构建时为 None）。
+    pub fn lookup_cache(&self, key: &str) -> Option<crate::lookup_cache::SharedLookupCache> {
+        self.lookup
+            .lock()
+            .ok()
+            .and_then(|guard| guard.get(key).cloned())
     }
 
-    /// 替换反查缓存。
-    pub fn set_lookup_cache(&self, cache: crate::lookup_cache::SharedLookupCache) {
+    /// 写入指定方案的反查缓存。
+    pub fn set_lookup_cache(
+        &self,
+        key: impl Into<String>,
+        cache: crate::lookup_cache::SharedLookupCache,
+    ) {
         if let Ok(mut guard) = self.lookup.lock() {
-            *guard = Some(cache);
+            guard.insert(key.into(), cache);
+        }
+    }
+
+    /// 清空全部反查缓存（方案变更或用户手动重建时）。
+    pub fn clear_lookup_cache(&self) {
+        if let Ok(mut guard) = self.lookup.lock() {
+            guard.clear();
         }
     }
 }

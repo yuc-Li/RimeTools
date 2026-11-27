@@ -1,47 +1,70 @@
-//! 反查数据缓存。
+//! 反查数据缓存（按方案隔离）。
 //!
-//! 反查需要把「其他配置文件的词库」读进内存才能快速检索。这里负责：
-//! - 按用户目录扫描候选文件（只扫用户目录，系统预设不纳入，避免几十 MB 常驻）；
-//! - 解析成 `rime_core::lookup::LookupSource`；
-//! - 同时装配符号表（预设 + 用户 + 各方案 punctuator）。
+//! 反查的关键是「只看当前输入法用到的词表」：
+//! - 小鹤音形 → `xhup.dict.yaml` 的 `import_tables`（`xhup_dicts/*`）+ 它的个人码表；
+//! - 小鹤双拼 → 主词典 + `custom_phrase_double.txt`。
 //!
-//! 缓存由 `AppState` 持有；`lookup_rebuild` 可显式重建（用户改了文件后）。
+//! 每个方案一份缓存，互不干扰；切换方案时按需构建，`lookup_rebuild` 可显式重建。
 
 use std::path::Path;
 use std::sync::Arc;
 
 use rime_core::lookup::LookupSource;
+use rime_core::types::SchemeInfo;
 use rime_platform::{sources, symbols};
 
 pub struct LookupCache {
+    /// 缓存键：方案 id，`*` 表示「全部文件」兜底模式
+    pub key: String,
+    pub schema_name: String,
     pub sources: Vec<LookupSource>,
     pub symbols: symbols::SymbolTable,
-    /// 扫描到但解析失败的来源数量（给 UI 提示用）
+    /// 解析失败的来源数量
     pub failed: u32,
 }
 
 impl LookupCache {
-    /// 构建缓存。`user_dir` 为 Rime 用户目录，`shared_dir` 用于取 symbols.yaml。
-    pub fn build(user_dir: &Path, shared_dir: &Path) -> Self {
-        // 方案 id 从用户目录的 *.schema.yaml 文件名推断，便于把词库归到方案
-        let schema_ids = collect_schema_ids(user_dir);
+    /// 按方案构建。`scheme` 为 None 时退回「扫描用户目录全部文件」。
+    pub fn build(user_dir: &Path, shared_dir: &Path, scheme: Option<&SchemeInfo>) -> Self {
+        let files = match scheme {
+            Some(s) => {
+                let scoped = sources::scan_for_scheme(user_dir, s);
+                if scoped.is_empty() {
+                    // 方案没声明词典（如纯英文方案）：退回全量扫描，避免空白页
+                    sources::scan(user_dir, user_dir, &[])
+                } else {
+                    scoped
+                }
+            }
+            None => sources::scan(user_dir, user_dir, &[]),
+        };
 
-        let files = sources::scan(user_dir, user_dir, &schema_ids);
         let loaded = sources::load_all(&files);
         let failed = loaded.iter().filter(|s| s.error.is_some()).count() as u32;
 
-        let symbol_table =
-            symbols::load(shared_dir, user_dir, &schema_files(user_dir, &schema_ids));
+        // 符号表：预设 + 用户 + 当前方案的 punctuator
+        let schema_files: Vec<(String, std::path::PathBuf)> = scheme
+            .map(|s| {
+                let mut path = user_dir.join(format!("{}.schema.yaml", s.schema_id));
+                if !path.exists() {
+                    path = user_dir.join(format!("{}.schema.yml", s.schema_id));
+                }
+                vec![(s.schema_id.clone(), path)]
+            })
+            .unwrap_or_default();
+        let symbol_table = symbols::load(shared_dir, user_dir, &schema_files);
 
         Self {
+            key: scheme
+                .map(|s| s.schema_id.clone())
+                .unwrap_or_else(|| "*".to_owned()),
+            schema_name: scheme
+                .map(|s| s.name.clone())
+                .unwrap_or_else(|| "全部文件".to_owned()),
             sources: loaded,
             symbols: symbol_table,
             failed,
         }
-    }
-
-    pub fn source_count(&self) -> usize {
-        self.sources.len()
     }
 
     pub fn entry_count(&self) -> u64 {
@@ -50,34 +73,3 @@ impl LookupCache {
 }
 
 pub type SharedLookupCache = Arc<LookupCache>;
-
-fn collect_schema_ids(user_dir: &Path) -> Vec<String> {
-    let Ok(entries) = std::fs::read_dir(user_dir) else {
-        return Vec::new();
-    };
-    let mut ids: Vec<String> = entries
-        .flatten()
-        .filter_map(|e| {
-            let name = e.file_name().to_string_lossy().to_string();
-            name.strip_suffix(".schema.yaml")
-                .or_else(|| name.strip_suffix(".schema.yml"))
-                .map(|s| s.to_owned())
-        })
-        .collect();
-    ids.sort();
-    ids.dedup();
-    ids
-}
-
-fn schema_files(user_dir: &Path, schema_ids: &[String]) -> Vec<(String, std::path::PathBuf)> {
-    schema_ids
-        .iter()
-        .map(|id| {
-            let mut path = user_dir.join(format!("{id}.schema.yaml"));
-            if !path.exists() {
-                path = user_dir.join(format!("{id}.schema.yml"));
-            }
-            (id.clone(), path)
-        })
-        .collect()
-}

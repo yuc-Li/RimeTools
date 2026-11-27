@@ -1292,6 +1292,13 @@ function planImportMock(
   return { plan, add, update };
 }
 
+/** 反查页用的方案元数据（与 schemes 列表保持一致的命名） */
+const schemes_meta = [
+  { schemaId: "double_pinyin_flypy", name: "小鹤双拼", isActive: true, isDoublePinyin: true },
+  { schemaId: "xhup", name: "小鹤音形", isActive: false, isDoublePinyin: false },
+  { schemaId: "rime_ice", name: "雾凇拼音", isActive: false, isDoublePinyin: false },
+];
+
 export async function mockInvoke<T>(
   cmd: string,
   args: Record<string, unknown> = {},
@@ -1665,7 +1672,11 @@ export async function mockInvoke<T>(
 
     // ── M2：只读反查 ──
     case "lookup_sources": {
-      const sources = [...files.values()].map((f) => ({
+      const wanted = (args.schemaId as string | null | undefined) ?? null;
+      const picked = wanted && wanted !== "*"
+        ? [...files.values()].filter((f) => f.schemeId === wanted)
+        : [...files.values()];
+      const sources = picked.map((f) => ({
         id: f.ref.path,
         name: f.ref.path.split("/").pop() ?? f.ref.path,
         origin: "user" as const,
@@ -1674,18 +1685,37 @@ export async function mockInvoke<T>(
         entryCount: f.entries.length,
         error: null,
       }));
+      const schemes = [...new Set([...files.values()].map((f) => f.schemeId))].map((id) => {
+        const meta = schemes_meta.find((s) => s.schemaId === id);
+        return {
+          schemaId: id,
+          name: meta?.name ?? id,
+          isActive: Boolean(meta?.isActive),
+          isDoublePinyin: Boolean(meta?.isDoublePinyin),
+        };
+      });
       return {
+        schemaId: wanted && wanted !== "*" ? wanted : "*",
+        schemaName:
+          wanted && wanted !== "*"
+            ? (schemes_meta.find((s) => s.schemaId === wanted)?.name ?? wanted)
+            : "全部文件",
         sources,
         symbolSources: ["预设符号表", "用户 symbols.yaml", "方案 xhup"],
         failed: 0,
         userDir: RIME_DIR,
+        schemes,
       } as T;
     }
 
     case "lookup_query": {
       const req = args.request as LookupQuery;
       const kw = req.keyword.trim().toLowerCase();
-      const allFiles = [...files.values()];
+      const wanted = (args.schemaId as string | null | undefined) ?? null;
+      const allFiles =
+        wanted && wanted !== "*"
+          ? [...files.values()].filter((f) => f.schemeId === wanted)
+          : [...files.values()];
       if (!kw) return { hits: [], total: 0, truncated: false, scannedSources: allFiles.length } as T;
 
       const merged = new Map<string, LookupHit>();

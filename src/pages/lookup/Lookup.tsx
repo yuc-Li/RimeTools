@@ -36,22 +36,37 @@ export default function Lookup() {
   const [exact, setExact] = useState(false);
 
   const [sources, setSources] = useState<LookupSourcesResult | null>(null);
+  /** 当前选中的方案；null = 用后端激活方案 */
+  const [schemaId, setSchemaId] = useState<string | null>(null);
   const [result, setResult] = useState<LookupResult | null>(null);
   const [symbols, setSymbols] = useState<SymbolHit[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const loadSources = useCallback(async () => {
+  const loadSources = useCallback(async (id: string | null) => {
     try {
-      setSources(await lookupApi.sources());
+      setSources(await lookupApi.sources(id));
     } catch (e) {
       setError(toAppError(e).message);
     }
   }, []);
 
+  // 首次进入先确保方案已注册（深链进来时工作台没跑过）
   useEffect(() => {
-    void loadSources();
-  }, [loadSources]);
+    void (async () => {
+      await lookupApi.ensureSchemes();
+      await loadSources(schemaId);
+    })();
+    // 仅首屏执行
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    void loadSources(schemaId);
+    // 切换方案后清空旧结果，避免看成上一条方案的数据
+    setResult(null);
+    setSymbols(null);
+  }, [loadSources, schemaId]);
 
   const runSearch = useCallback(async () => {
     const kw = keyword.trim();
@@ -61,30 +76,33 @@ export default function Lookup() {
     try {
       if (view === "dict") {
         setResult(
-          await lookupApi.query({
-            mode,
-            keyword: kw,
-            exact,
-            sourceIds: [],
-            limit: 200,
-          }),
+          await lookupApi.query(
+            {
+              mode,
+              keyword: kw,
+              exact,
+              sourceIds: [],
+              limit: 200,
+            },
+            schemaId,
+          ),
         );
       } else {
-        setSymbols(await lookupApi.symbol(kw));
+        setSymbols(await lookupApi.symbol(kw, 50, schemaId));
       }
     } catch (e) {
       setError(toAppError(e).message);
     } finally {
       setBusy(false);
     }
-  }, [keyword, mode, exact, view]);
+  }, [keyword, mode, exact, view, schemaId]);
 
   const rebuild = useCallback(async () => {
     setBusy(true);
     setError(null);
     try {
-      await lookupApi.rebuild();
-      await loadSources();
+      await lookupApi.rebuild(schemaId);
+      await loadSources(schemaId);
       setResult(null);
       setSymbols(null);
     } catch (e) {
@@ -92,7 +110,7 @@ export default function Lookup() {
     } finally {
       setBusy(false);
     }
-  }, [loadSources]);
+  }, [loadSources, schemaId]);
 
   const stats = useMemo(() => {
     if (!sources) return null;
@@ -141,6 +159,28 @@ export default function Lookup() {
           符号打法
         </button>
       </div>
+
+      {sources && sources.schemes.length > 0 ? (
+        <div className="lk-scope">
+          <span className="lk-scope__label">输入法方案</span>
+          <select
+            className="lk-select"
+            value={schemaId ?? sources.schemaId}
+            onChange={(e) => setSchemaId(e.target.value)}
+          >
+            {sources.schemes.map((s) => (
+              <option key={s.schemaId} value={s.schemaId}>
+                {s.name}（{s.schemaId}）
+                {s.isActive ? " · 当前" : ""}
+              </option>
+            ))}
+            <option value="*">全部文件</option>
+          </select>
+          <span className="lk-scope__hint">
+            查的是该方案实际加载的词表（含 import_tables 与个人码表）
+          </span>
+        </div>
+      ) : null}
 
       <div className="lk-toolbar">
         <input
@@ -194,7 +234,7 @@ export default function Lookup() {
       {error ? <div className="ui-alert">{error}</div> : null}
 
       {view === "dict" ? (
-        <DictResults result={result} />
+        <DictResults result={result} schemaName={sources?.schemaName ?? "当前方案"} />
       ) : (
         <SymbolResults symbols={symbols} />
       )}
@@ -216,15 +256,21 @@ export default function Lookup() {
   );
 }
 
-function DictResults({ result }: { result: LookupResult | null }) {
+function DictResults({
+  result,
+  schemaName,
+}: {
+  result: LookupResult | null;
+  schemaName: string;
+}) {
   if (!result) {
-    return <p className="lk-hint">输入关键词后回车或点「查询」。</p>;
+    return <p className="lk-hint">输入关键词后回车或点「查询」；可先在上方选择输入法方案。</p>;
   }
   if (result.hits.length === 0) {
     return (
       <p className="lk-hint">
-        没有命中。反查只索引用户目录下的词库文件（{result.scannedSources} 个），
-        系统预设不在范围内。
+        没有命中。「{schemaName}」的 {result.scannedSources} 个词表里没有匹配项。
+        反查只覆盖该方案实际加载的用户侧词表，系统预设不在范围内。
       </p>
     );
   }

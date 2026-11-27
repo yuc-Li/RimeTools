@@ -77,6 +77,32 @@ fn real_lookup_and_symbols() {
         .collect();
     println!("方案: {schema_ids:?}");
 
+    // 按方案收集：小鹤音形应拿到 xhup_dicts/* 而不是别的方案
+    let schemes = rime_platform::detect_schemes(user_dir);
+    if let Some(xhup) = schemes.iter().find(|s| s.schema_id == "xhup") {
+        let scoped = sources::scan_for_scheme(user_dir, xhup);
+        println!("xhup 方案词表（{} 个）:", scoped.len());
+        let mut total_scoped = 0u64;
+        for f in &scoped {
+            let loaded = rime_platform::sources::load(f);
+            total_scoped += loaded.entry_count as u64;
+            println!(
+                "    {:<45} {:>8} 条",
+                f.path.strip_prefix(user_dir).unwrap_or(&f.path).display(),
+                loaded.entry_count
+            );
+        }
+        println!("    scoped 条目合计: {total_scoped}");
+        assert!(
+            scoped.iter().any(|f| f.id.contains("xhup_dicts")),
+            "应按 import_tables 找到 xhup_dicts 下的词表"
+        );
+        assert!(
+            scoped.iter().all(|f| f.id.contains("xhup")),
+            "不应混入其他方案"
+        );
+    }
+
     let files = sources::scan(user_dir, user_dir, &schema_ids);
     println!("可反查文件: {}", files.len());
     let loaded = sources::load_all(&files);

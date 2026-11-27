@@ -313,3 +313,119 @@ fn sources_are_labelled_with_origin() {
     assert!(loaded.iter().any(|s| s.origin == SourceOrigin::User));
     assert!(loaded.iter().any(|s| s.origin == SourceOrigin::System));
 }
+
+// ───────────────────────── 按方案收集词表 ─────────────────────────
+
+/// 复刻真实结构：`xhup.dict.yaml` 只是索引，真正词表在 `xhup_dicts/` 子目录。
+#[test]
+fn scheme_scan_follows_import_tables_into_subdirectories() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+
+    // 方案文件 + 主词典（fixture 里的 xhup.dict.yaml 带完整 import_tables）
+    copy_fixture("rime-crane-xhup/xhup.schema.yaml", root, "xhup.schema.yaml");
+    copy_fixture("rime-crane-xhup/xhup.dict.yaml", root, "xhup.dict.yaml");
+
+    // 子目录：用户码表
+    std::fs::create_dir(root.join("xhup_dicts")).unwrap();
+    copy_fixture(
+        "rime-crane-xhup/xhup.user.dict.yaml",
+        &root.join("xhup_dicts"),
+        "xhup.user.dict.yaml",
+    );
+    copy_fixture(
+        "rime-crane-xhup/xhup.user.top.dict.yaml",
+        &root.join("xhup_dicts"),
+        "xhup.user.top.dict.yaml",
+    );
+
+    // import_tables 里的「主码表」：名字带点（xhup.primary），
+    // 用于验证解析时是追加扩展名而不是替换
+    std::fs::write(
+        root.join("xhup_dicts").join("xhup.primary.dict.yaml"),
+        "---\nname: xhup.primary\n...\n\n主码字\tan\n",
+    )
+    .unwrap();
+
+    // 干扰项：别的方案的词表，不应被 xhup 带进来
+    std::fs::write(
+        root.join("other_scheme.dict.yaml"),
+        "---\nname: other_scheme\n...\n\n干扰词\tgr\n",
+    )
+    .unwrap();
+    // 以及顶层一个与本方案无关的 txt
+    std::fs::write(root.join("custom_phrase_double.txt"), "你好\tnihc\n").unwrap();
+
+    let schemes = rime_platform::detect_schemes(root);
+    let xhup = schemes
+        .iter()
+        .find(|s| s.schema_id == "xhup")
+        .expect("应识别出 xhup 方案");
+
+    let files = sources::scan_for_scheme(root, xhup);
+    let names: Vec<String> = files
+        .iter()
+        .map(|f| {
+            f.path
+                .strip_prefix(root)
+                .unwrap()
+                .to_string_lossy()
+                .to_string()
+        })
+        .collect();
+
+    assert!(
+        names.iter().any(|n| n == "xhup_dicts/xhup.user.dict.yaml"),
+        "应通过 import_tables 找到子目录里的用户码表，实际：{names:?}"
+    );
+    assert!(
+        names
+            .iter()
+            .any(|n| n == "xhup_dicts/xhup.user.top.dict.yaml"),
+        "应包含置顶码表，实际：{names:?}"
+    );
+    assert!(
+        names
+            .iter()
+            .any(|n| n == "xhup_dicts/xhup.primary.dict.yaml"),
+        "import_tables 里的主码表（名字带点）必须被解析到，实际：{names:?}"
+    );
+    assert!(
+        !names.iter().any(|n| n == "other_scheme.dict.yaml"),
+        "不得混入其他方案的词表，实际：{names:?}"
+    );
+    assert!(
+        !names.iter().any(|n| n.starts_with("custom_phrase_double")),
+        "双拼短语不属于音形方案，实际：{names:?}"
+    );
+    assert!(
+        names.iter().all(|n| n.contains("xhup")),
+        "所有文件都应属于 xhup，实际：{names:?}"
+    );
+}
+
+#[test]
+fn scheme_scan_handles_missing_import_targets() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+    // 只放主词典，import_tables 指向的文件都不存在
+    std::fs::write(
+        root.join("t.dict.yaml"),
+        "---\nname: t\nimport_tables:\n  - dicts/不存在\n  - dicts/也没有\n...\n\n甲\tj\n",
+    )
+    .unwrap();
+    std::fs::write(
+        root.join("t.schema.yaml"),
+        "schema:\n  schema_id: t\n  name: T\nengine:\n  translators:\n    - table_translator\ntranslator:\n  dictionary: t\n",
+    )
+    .unwrap();
+
+    let schemes = rime_platform::detect_schemes(root);
+    let scheme = schemes
+        .iter()
+        .find(|s| s.schema_id == "t")
+        .expect("应识别出 t 方案");
+    let files = sources::scan_for_scheme(root, scheme);
+    assert_eq!(files.len(), 1, "缺失的 import 应被跳过，只保留主词典");
+    assert!(files[0].path.ends_with("t.dict.yaml"));
+}
