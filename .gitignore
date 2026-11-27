@@ -28,3 +28,4 @@ docs/screenshots/*.png
 # CI 诊断用临时日志
 .ci.log
 .cihome/
+.sess.jsonl
