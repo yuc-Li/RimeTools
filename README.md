@@ -1,0 +1,119 @@
+# RimeTools
+
+跨平台的 Rime 个人词库管理工具，面向 **Linux（fcitx5-rime）** 与 **Windows（小狼毫 Weasel）**。
+
+Rime 的配置和词库都是可读的文本文件，灵活但日常维护麻烦：加个词、调个权重、改完还得手动重新部署。
+RimeTools 把这些高频操作做成图形界面，并保证改写时**不破坏你现有的文件**。
+
+![词库工作台](docs/screenshots/workbench.webp)
+
+## 功能
+
+**词库工作台** —— 浏览、搜索、排序、分组、批量编辑词条；支持 10 万条词库的虚拟滚动列表。
+双击即可修改文本/编码/权重，改动先暂存，确认后一次性写入。
+
+**编码建议** —— 新增词条时按当前方案自动给码，支持三种方案类型：
+
+| 方案类型 | 建议规则 |
+| --- | --- |
+| 全拼 / 双拼 | 从方案 `speller/algebra` 实时求值出双拼映射，另给简拼 |
+| 音形（如小鹤音形） | 二字词拼接、三字词取首键、四字以上取前三字 + 末字首键 |
+| 英文 | 小写 / 大写 / 原样，短语自动去空格与连字符 |
+
+多音字会给多个候选；建议只是默认值，随时可改，且**不会自动改写已有编码**。
+
+**一键部署** —— 改完词直接推到输入法，不用再手动「重新部署」。
+
+![部署](docs/screenshots/deploy.webp)
+
+部署是否真的生效，**以 `build/` 构建产物是否更新为准**，而不是看命令退出码——
+Rime 的部署是增量的，词库没变时会跳过重新编译，这种情况会被正确识别为「已是最新」而非失败。
+
+**备份与恢复** —— 每次写入前自动备份；恢复时必须先看 diff（新增/删除/修改条数）再确认，
+恢复前还会再备份一次当前版本，所以恢复本身也能回滚。
+
+![备份与恢复](docs/screenshots/backup.webp)
+
+**环境自适应** —— 自动识别输入法前端、用户目录与方案，并推断「这个方案的个人词条存在哪个文件」：
+
+| 方案 | 受管文件 | 格式 |
+| --- | --- | --- |
+| 小鹤双拼 | `custom_phrase_double.txt` | 文本 / 编码 / 权重（三列） |
+| 小鹤音形 | `xhup.user*.dict.yaml` | 文本 / 编码（两列，无权重） |
+
+不硬编码方案名：新增方案只要结构符合，就能被识别。
+
+## 安装
+
+Linux 从 Release 下载：
+
+```bash
+# Debian / Ubuntu
+sudo dpkg -i rimetools_<版本>_amd64.deb
+
+# 或便携版（装到 ~/.local，无需 root）
+tar -xzf rimetools-<版本>-amd64.tar.gz
+cd rimetools-<版本>-amd64 && ./install.sh
+```
+
+Windows 版尚未打包（代码已有平台适配层，暂未实测）。
+
+## 从源码运行
+
+依赖：Rust 1.77+、Node.js 20+、`libwebkit2gtk-4.1-dev`、`libgtk-3-dev`、`librime-dev`。
+
+```bash
+# 开发模式（前端热更新）
+./scripts/dev.sh
+
+# 独立模式（前端资源打进二进制，启动快）
+./scripts/dev.sh --prod
+
+# 打包 deb + 便携包 → dist-pkg/
+./scripts/package.sh
+```
+
+## 测试
+
+```bash
+cd src-tauri
+cargo test --workspace     # 269 个测试
+```
+
+前端：`npx tsc --noEmit && npx vitest run`
+
+## 工作原理与安全边界
+
+- **只写受管文件**：系统词典、方案原文件永不修改；`*.custom.yaml` 只增改本工具声明的键。
+- **写入协议**：读文件 → 校验指纹（发现外部修改则拒绝写入）→ 备份 → 临时文件 + fsync → 原子 rename。
+- **往返保真**：未编辑的行原样输出，解析→序列化逐字节一致（BOM、CRLF、注释、结尾有无换行都保留）。
+- **候选预览在隔离目录**中运行，不影响你正在使用的输入法。
+
+技术细节见 [docs/ipc.md](docs/ipc.md)（前后端接口契约）与 [docs/PRD.md](docs/PRD.md)（需求）。
+
+## 项目结构
+
+```
+src/                      Web UI（React + TypeScript）
+  ipc/                    接口契约类型与调用封装
+src-tauri/
+  src/                    应用壳：窗口 / 托盘 / 单实例 / 命令注册
+  crates/
+    rime-core             词库解析与序列化、查询索引、校验
+    rime-suggest          编码建议：algebra 求值、双拼映射、音形词码
+    rime-safety           写入安全：原子写、备份、外部修改检测
+    rime-platform         环境探测与方案识别（唯一允许平台分支的地方）
+    rime-deploy           部署编排：fcitx5 D-Bus / 产物新鲜度判定
+    rime-ffi              librime 动态加载与隔离会话
+tests/fixtures/           测试夹具（合成数据）
+scripts/                  启动、打包、图标生成、截图
+```
+
+## 许可
+
+[MIT](LICENSE)。
+
+工具只在**运行时**解析你本地的 Rime 方案与码表，不随二进制分发任何第三方码表内容。
+
+`tests/fixtures/` 保留了少量上游方案文件用于测试（各自遵循原仓库许可，多为 GPL-3.0），
+仅作测试夹具、不进入发布产物，详见 [tests/fixtures/NOTICE.md](tests/fixtures/NOTICE.md)。

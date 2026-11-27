@@ -1,0 +1,258 @@
+/* 通用组件样式：虚拟列表 / 模态框 / 反馈组件。
+   与 src/styles.css 的全局变量（--bg/--fg/--muted/--border/--accent…）保持一致，并给出兜底值。 */
+
+/* ── 虚拟列表 ── */
+.ui-vlist {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  outline: none;
+  border: 1px solid var(--border, #dcdce0);
+  border-radius: 8px;
+  background: var(--bg, #f7f7f8);
+}
+.ui-vlist:focus-visible {
+  box-shadow: 0 0 0 2px var(--accent, #2f6f4f);
+}
+.ui-vlist__spacer {
+  position: relative;
+  width: 100%;
+}
+.ui-vlist__row {
+  position: absolute;
+  left: 0;
+  right: 0;
+  overflow: hidden;
+}
+
+/* ── 模态框 ── */
+.ui-modal__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 8vh 16px 16px;
+  background: rgb(0 0 0 / 42%);
+  overflow: auto;
+}
+.ui-modal {
+  width: 100%;
+  background: var(--bg, #fff);
+  color: var(--fg, #1c1c1e);
+  border: 1px solid var(--border, #dcdce0);
+  border-radius: 12px;
+  box-shadow: 0 18px 48px rgb(0 0 0 / 28%);
+  display: flex;
+  flex-direction: column;
+  max-height: 84vh;
+}
+.ui-modal--danger {
+  border-color: var(--danger-fg, #8a2a22);
+}
+.ui-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border, #dcdce0);
+}
+.ui-modal__header h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+.ui-modal__close {
+  border: none;
+  background: transparent;
+  color: var(--muted, #6b6b70);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+.ui-modal__close:hover {
+  background: rgb(127 127 127 / 14%);
+  color: var(--fg, #1c1c1e);
+}
+.ui-modal__body {
+  padding: 16px 18px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.ui-modal__footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 18px;
+  border-top: 1px solid var(--border, #dcdce0);
+  flex-wrap: wrap;
+}
+
+/* ── 按钮（页面内也复用） ── */
+.ui-btn {
+  font: inherit;
+  padding: 5px 12px;
+  border-radius: 7px;
+  border: 1px solid var(--border, #dcdce0);
+  background: transparent;
+  color: var(--fg, #1c1c1e);
+  cursor: pointer;
+}
+.ui-btn:hover:not(:disabled) {
+  border-color: var(--accent, #2f6f4f);
+  color: var(--accent, #2f6f4f);
+}
+.ui-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.ui-btn--primary {
+  background: var(--accent, #2f6f4f);
+  border-color: var(--accent, #2f6f4f);
+  color: #fff;
+}
+.ui-btn--primary:hover:not(:disabled) {
+  filter: brightness(1.08);
+  color: #fff;
+}
+.ui-btn--danger {
+  border-color: var(--danger-fg, #8a2a22);
+  color: var(--danger-fg, #8a2a22);
+}
+.ui-btn--danger:hover:not(:disabled) {
+  background: var(--danger-bg, #fdf0ef);
+  color: var(--danger-fg, #8a2a22);
+}
+.ui-btn--ghost {
+  border-color: transparent;
+  color: var(--muted, #6b6b70);
+}
+.ui-btn--sm {
+  padding: 2px 8px;
+  font-size: 12px;
+}
+
+/* ── 反馈 ── */
+.ui-spinner {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted, #6b6b70);
+  font-size: 13px;
+}
+.ui-spinner__dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid var(--border, #dcdce0);
+  border-top-color: var(--accent, #2f6f4f);
+  animation: ui-spin 0.8s linear infinite;
+}
+@keyframes ui-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.ui-alert {
+  padding: 12px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--danger-fg, #8a2a22);
+  background: var(--danger-bg, #fdf0ef);
+  color: var(--danger-fg, #8a2a22);
+  font-size: 13px;
+}
+.ui-alert--compact {
+  padding: 8px 10px;
+  font-size: 12px;
+}
+.ui-alert__head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.ui-alert__code {
+  font-size: 11px;
+  opacity: 0.7;
+}
+.ui-alert__hint {
+  margin: 6px 0 0;
+}
+.ui-alert__detail {
+  margin-top: 8px;
+}
+.ui-alert__detail summary {
+  cursor: pointer;
+  opacity: 0.8;
+}
+.ui-alert__detail pre {
+  margin: 6px 0 0;
+  padding: 8px;
+  max-height: 180px;
+  overflow: auto;
+  background: rgb(127 127 127 / 10%);
+  border-radius: 6px;
+  font-size: 11px;
+  white-space: pre-wrap;
+}
+.ui-alert__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+.ui-alert__actions .ui-btn {
+  border-color: currentColor;
+  color: inherit;
+}
+
+.ui-empty {
+  padding: 44px 16px;
+  text-align: center;
+  color: var(--muted, #6b6b70);
+}
+.ui-empty__title {
+  margin: 0;
+  font-size: 14px;
+  color: var(--fg, #1c1c1e);
+}
+.ui-empty__desc {
+  margin: 6px 0 0;
+  font-size: 13px;
+}
+.ui-empty__action {
+  margin-top: 14px;
+}
+
+.ui-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  font-size: 11px;
+  line-height: 17px;
+  white-space: nowrap;
+}
+.ui-badge--muted { color: var(--muted, #6b6b70); }
+.ui-badge--info { color: #3b6ea5; }
+.ui-badge--accent { color: var(--accent, #2f6f4f); }
+.ui-badge--warn { color: #a8690c; background: rgb(233 168 45 / 10%); }
+.ui-badge--danger { color: var(--danger-fg, #8a2a22); background: var(--danger-bg, #fdf0ef); }
+.ui-badge--ok { color: var(--accent, #2f6f4f); }
+
+@media (prefers-color-scheme: dark) {
+  .ui-badge--info { color: #8ab4e8; }
+  .ui-badge--warn { color: #e9b95c; }
+}

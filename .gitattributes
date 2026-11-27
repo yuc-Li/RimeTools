@@ -1,0 +1,20 @@
+# 测试夹具依赖原始换行风格（如 xhup 用户码表是 CRLF），
+# 若被 git 的换行转换改写，往返保真测试会失败。
+# 这里显式声明为二进制式处理，禁止任何换行归一化。
+tests/fixtures/** -text
+
+# 二进制资源
+*.png binary
+*.ico binary
+*.deb binary
+
+# 统一文本文件的换行（仓库内以 LF 存储）
+*.rs text eol=lf
+*.ts text eol=lf
+*.tsx text eol=lf
+*.css text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.sh text eol=lf
+*.toml text eol=lf
+*.yml text eol=lf

@@ -1,0 +1,14 @@
+[package]
+name = "rime-safety"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+rime-core = { path = "../rime-core" }
+tracing = { workspace = true }
+# 备份文件名需要本地时间（`yyyyMMdd_HHmmss`，兼容参考工具 rime-config-tool）。
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+
+[dev-dependencies]
+tempfile = { workspace = true }

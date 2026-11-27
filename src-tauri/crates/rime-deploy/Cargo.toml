@@ -1,0 +1,12 @@
+[package]
+name = "rime-deploy"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+tracing = { workspace = true }
+rime-core = { path = "../rime-core" }
+
+[dev-dependencies]
+tempfile = { workspace = true }

@@ -1,0 +1,43 @@
+# Rime dictionary
+# encoding: utf-8
+#---config@码表分类=主码-用户置顶码表
+#---config@码表别名=用户
+
+---
+name: xhup.user.top
+version: "v10.9s"
+sort: by_weight
+use_preset_vocabulary: false
+...
+
+长短	ihdr
+大小	daxn
+多少	douc
+新旧	xbjq
+快慢	kkmj
+冷热	lgre
+远近	yrjb
+香甜	xltm
+苦辣	kula
+东南	dsnj
+西北	xibw
+春夏	iyxx
+秋冬	qqds
+人民	rfmb
+说话	uohx
+书写	uuxp
+听说	tkuo
+走路	zzlu
+吃饭	iifj
+睡觉	uvjn
+回家	hvjx
+出门	iumf
+窗户	ilhu
+表格	bnge
+查找	iavc
+删除	ujiu
+打印	dayb
+输入	uuru
+输出	uuiu
+读音	duyb
+示例词	pxm

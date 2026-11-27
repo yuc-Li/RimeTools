@@ -1,0 +1,20 @@
+# RimeTools rime-ffi 集成测试用最小码表。
+#
+# 关键设计 —— 复现 xhup 的「4 码自动上屏」：
+# librime 的 auto_select 只在 *该编码只有一个候选* 时触发
+# （speller.cc: AutoSelectUniqueCandidate → seg.menu->Prepare(2) == 1），
+# 并且候选编码要匹配 speller/auto_select_pattern。
+# 所以：
+#   - abcd 只有「甲」一个候选 → 第 4 码会立即上屏、context 清空（xhup 常见的唯一音形码）；
+#   - abce 有「乙」「丙」两个候选 → 第 4 码不上屏，context 保留，可正常预览。
+---
+name: preview_demo
+version: "1.0"
+sort: by_weight
+...
+
+甲	abcd	100
+乙	abce	100
+丙	abce	50
+丁	abc	10
+测	ce	1

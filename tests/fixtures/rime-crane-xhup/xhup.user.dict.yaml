@@ -1,0 +1,35 @@
+# Rime dictionary
+# encoding: utf-8
+#---config@码表分类=主码-用户码表
+#---config@码表别名=用户
+
+---
+name: xhup.user
+version: "v10.9s"
+sort: by_weight
+use_preset_vocabulary: false
+...
+
+中国	vsgo
+中文	vswf
+你好	nihc
+数据	uuju
+保存	bccy
+修改	xqgd
+添加	tmjx
+汉字	hjzi
+英语	ykyu
+编码	bmma
+名字	mkzi
+号码	hcma
+时间	uijm
+工作	gszo
+学校	xtxn
+老师	lcui
+朋友	pgyz
+上下	uhxx
+左右	zoyz
+高低	gcdi
+示例词	pxm
+00000000000	puj
+000000000000000000	pufv

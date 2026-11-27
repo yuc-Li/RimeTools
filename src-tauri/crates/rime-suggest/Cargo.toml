@@ -1,0 +1,13 @@
+[package]
+name = "rime-suggest"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+thiserror = { workspace = true }
+tracing = { workspace = true }
+rime-core = { path = "../rime-core" }
+# 仅用于 algebra 规则的逐条求值（`xform`/`derive`/`erase`）。
+# 注意：替换串展开必须自己实现（Rime/boost 用 `$1v`，regex crate 会把它当成命名组）。
+regex = "1"

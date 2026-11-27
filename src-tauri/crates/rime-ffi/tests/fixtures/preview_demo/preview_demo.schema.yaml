@@ -1,0 +1,51 @@
+# RimeTools rime-ffi 集成测试用最小方案。
+#
+# 目的不是还原某个真实方案，而是以最小依赖验证 librime 隔离会话链路：
+#   RimeSetup → RimeInitialize → 隔离部署 → RimeCreateSession → RimeSelectSchema
+#   → 逐键 RimeSimulateKeySequence → RimeGetContext → RimeFreeContext。
+#
+# speller/auto_select 与 xhup 完全一致（auto_select: true + ^;.$|^\w{4}$），
+# 用来复现「第 4 码自动上屏导致 context 清空」的坑，并验证两种处理方式。
+schema:
+  schema_id: preview_demo
+  name: RimeTools Preview Demo
+  version: "1.0"
+
+engine:
+  processors:
+    - ascii_composer
+    - speller
+    - selector
+    - navigator
+    - express_editor
+  segmentors:
+    - abc_segmentor
+    - fallback_segmentor
+  translators:
+    - table_translator
+
+# 最小 ascii_composer 配置，避免 librime 每次按键打印 "Missing ascii bindings"。
+ascii_composer:
+  good_old_caps_lock: true
+  switch_key:
+    Shift_L: noop
+    Shift_R: noop
+    Control_L: noop
+    Control_R: noop
+    Caps_Lock: noop
+    Eisu_toggle: noop
+
+speller:
+  alphabet: "abcdefghijklmnopqrstuvwxyz"
+  max_code_length: 4
+  auto_select: true
+  auto_select_pattern: ^;.$|^\w{4}$
+  auto_clear: max_length
+
+translator:
+  dictionary: preview_demo
+  enable_user_dict: false
+  enable_completion: false
+
+menu:
+  page_size: 5

@@ -1,0 +1,26 @@
+# ── 构建产物与依赖缓存（绝不入库）──
+node_modules/
+dist/
+target/
+.cargo-target/
+.cargo-home/
+.toolchain/
+.npm-cache/
+src-tauri/gen/
+*.log
+
+# ── 个人/本地数据（绝不入库）──
+# 真实 Rime 配置的本地副本（需要时手动放到这里，不要提交）
+tests/fixtures/*.local/
+.testhome/
+.verify/
+src/pages/workbench/.scratch/
+
+# ── 编辑器/系统 ──
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+dist-pkg/
+src-tauri/icons/icon-1024.png
+docs/screenshots/*.png

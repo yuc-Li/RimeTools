@@ -1,0 +1,8 @@
+# RimeTools rime-ffi 集成测试用最小 default.yaml（只启用 preview_demo）。
+config_version: "1.0"
+
+schema_list:
+  - schema: preview_demo
+
+menu:
+  page_size: 5

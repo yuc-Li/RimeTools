@@ -1,0 +1,5 @@
+
+patch:
+  schema_list:
+    - {schema: xhup}
+    - {schema: double_pinyin_flypy}

@@ -1,0 +1,16 @@
+[package]
+name = "rime-ffi"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+serde = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+rime-core = { path = "../rime-core" }
+libloading = "0.8"
+tempfile = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

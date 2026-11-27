@@ -1,0 +1,60 @@
+# Rime dictionary
+# encoding: utf-8
+#---config@码表分类=主码-0
+#---config@码表别名=-0- 首选字词
+# 来源 http://ys-j.ysepan.com/116124341/319344440/kkmSvVn4I3K1K7N6IOLNb9d/%E5%B0%8F%E9%B9%A4%E9%9F%B3%E5%BD%A2for%E6%89%8B%E6%9C%BA%E6%90%9C%E7%8B%97%E7%99%BE%E5%BA%A6%E8%87%AA%E5%AE%9A%E4%B9%89%E6%96%B9%E6%A1%88.txt?lx=xz
+# 保留 1.首选词 （53444） 和 3.填空码 （5089）
+
+---
+name: xhup.primary
+version: "v10.9s"
+sort: original
+# use_preset_vocabulary: true
+# max_phrase_length: 7
+# min_phrase_weight: 100
+...
+# 1.首选词 （53444）
+按	anf
+安	an
+案	anb
+爱	ai
+阿	aa
+奥	ao
+岸	ane
+澳	aod
+埃	ait
+艾	aic
+碍	aiuc
+癌	aib
+暗	ano
+昂	ah
+傲	aor
+鞍	angn
+哀	aiw
+氨	anq
+挨	aif
+俺	anr
+熬	aof
+矮	aiu
+凹	aol
+盎	ahy
+胺	anon
+隘	aie
+鳌	aofa
+铵	anj
+谙	any
+庵	ang
+蔼	aicv
+敖	aofw
+腌	aao
+黯	anh
+遨	aoz
+唉	aik
+鏖	aog
+袄	aop
+皑	aibj
+哎	aikx
+坳	aot
+翱	aob
+嗷	aok
+肮	aho
