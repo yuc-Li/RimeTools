@@ -389,7 +389,14 @@ impl DeployController {
                             self.config.timeout.as_secs_f32()
                         );
                         let delta = BuildDelta::default();
-                        self.finish_success(trigger, round_start, outcome, true, &delta, Some(note));
+                        self.finish_success(
+                            trigger,
+                            round_start,
+                            outcome,
+                            true,
+                            &delta,
+                            Some(note),
+                        );
                     }
                     Ok(false) => {
                         // 产物比词库旧 → 改动确实没生效，这是真失败
@@ -405,7 +412,14 @@ impl DeployController {
                             "部署命令已执行；未能读取产物时间戳以确认生效（{e}），请实际输入验证。"
                         );
                         let delta = BuildDelta::default();
-                        self.finish_success(trigger, round_start, outcome, false, &delta, Some(note));
+                        self.finish_success(
+                            trigger,
+                            round_start,
+                            outcome,
+                            false,
+                            &delta,
+                            Some(note),
+                        );
                     }
                 }
             }
@@ -423,9 +437,11 @@ impl DeployController {
         // 「无变化」的提前收敛窗口：真正的重新编译几秒内就会写 build/，
         // 若这么久了还一点没动，基本就是 librime 判断无需重编译。
         // 不提前收敛的话用户要干等满 timeout（实测体验很差）。
-        let grace_deadline = Instant::now() + self.config.no_change_grace.min(
-            deadline.saturating_duration_since(Instant::now()),
-        );
+        let grace_deadline = Instant::now()
+            + self
+                .config
+                .no_change_grace
+                .min(deadline.saturating_duration_since(Instant::now()));
 
         loop {
             let now = Instant::now();

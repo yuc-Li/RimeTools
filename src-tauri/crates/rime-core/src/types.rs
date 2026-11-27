@@ -57,7 +57,12 @@ pub struct AppError {
 
 impl AppError {
     pub fn new(code: ErrorCode, message: impl Into<String>) -> Self {
-        Self { code, message: message.into(), detail: None, hint: None }
+        Self {
+            code,
+            message: message.into(),
+            detail: None,
+            hint: None,
+        }
     }
 
     pub fn with_hint(mut self, hint: impl Into<String>) -> Self {
@@ -238,7 +243,10 @@ pub struct SortSpec {
 
 impl Default for SortSpec {
     fn default() -> Self {
-        Self { field: SortField::LineNo, desc: false }
+        Self {
+            field: SortField::LineNo,
+            desc: false,
+        }
     }
 }
 

@@ -166,7 +166,6 @@ fn no_output_change_and_build_older_than_source_is_failure() {
     assert_eq!(controller.state().phase, DeployPhase::Failed);
 }
 
-
 #[test]
 fn deployer_error_marks_failed_with_deploy_failed_code() {
     let (_temp, config) = setup();

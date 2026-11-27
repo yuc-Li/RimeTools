@@ -38,7 +38,11 @@ impl ParsedDict {
         };
 
         // 换行风格：出现第一个 \r\n 即判定 CRLF
-        let newline = if body.contains("\r\n") { Newline::Crlf } else { Newline::Lf };
+        let newline = if body.contains("\r\n") {
+            Newline::Crlf
+        } else {
+            Newline::Lf
+        };
         let ends_with_newline = body.ends_with('\n');
         let normalized = body.replace("\r\n", "\n");
 
@@ -76,12 +80,21 @@ impl ParsedDict {
             return Err(ParseError::MissingYamlTerminator);
         }
 
-        Ok(Self { format, bom, newline, ends_with_newline, lines })
+        Ok(Self {
+            format,
+            bom,
+            newline,
+            ends_with_newline,
+            lines,
+        })
     }
 
     /// 词条数量。
     pub fn entry_count(&self) -> usize {
-        self.lines.iter().filter(|l| matches!(l, Line::Entry(_))).count()
+        self.lines
+            .iter()
+            .filter(|l| matches!(l, Line::Entry(_)))
+            .count()
     }
 
     /// 按文本+编码查找词条下标。
@@ -160,7 +173,9 @@ sort: by_weight
                 _ => None,
             })
             .collect();
-        assert!(raws.iter().any(|s| s.contains("#---config@码表分类=主码-用户码表")));
+        assert!(raws
+            .iter()
+            .any(|s| s.contains("#---config@码表分类=主码-用户码表")));
         assert!(raws.iter().any(|s| s.trim() == "..."));
     }
 

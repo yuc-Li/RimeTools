@@ -61,10 +61,7 @@ pub fn deploy_history(
 
 /// 等待当前部署结束（上限 `timeout_ms`），主要用于测试与「保存并部署」的同步反馈。
 #[tauri::command]
-pub fn deploy_wait(
-    timeout_ms: Option<u64>,
-    state: State<'_, AppState>,
-) -> Result<bool, AppError> {
+pub fn deploy_wait(timeout_ms: Option<u64>, state: State<'_, AppState>) -> Result<bool, AppError> {
     match state.existing_deploy_controller() {
         Some(ctl) => Ok(ctl.wait_until_idle(std::time::Duration::from_millis(
             timeout_ms.unwrap_or(30_000),
@@ -78,19 +75,15 @@ pub fn deploy_wait(
 /// 只允许打开确实存在的本地文件；路径来自后端自己写入的 `logPath`，
 /// 仍做存在性校验，避免前端传入任意路径。
 #[tauri::command]
-pub fn deploy_open_log(
-    path: String,
-    app: tauri::AppHandle,
-) -> Result<serde_json::Value, AppError> {
+pub fn deploy_open_log(path: String, app: tauri::AppHandle) -> Result<serde_json::Value, AppError> {
     use tauri_plugin_opener::OpenerExt;
 
     let path_buf = std::path::PathBuf::from(&path);
     if !path_buf.is_file() {
-        return Err(AppError::new(
-            ErrorCode::NotFound,
-            format!("日志文件不存在：{path}"),
-        )
-        .with_hint("部署成功且产生日志后才有文件；也可到部署页查看最近结果"));
+        return Err(
+            AppError::new(ErrorCode::NotFound, format!("日志文件不存在：{path}"))
+                .with_hint("部署成功且产生日志后才有文件；也可到部署页查看最近结果"),
+        );
     }
     app.opener()
         .open_path(path_buf.to_string_lossy(), None::<&str>)

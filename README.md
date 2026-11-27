@@ -1,5 +1,7 @@
 # RimeTools
 
+[![CI](https://github.com/yuc-Li/RimeTools/actions/workflows/ci.yml/badge.svg)](https://github.com/yuc-Li/RimeTools/actions/workflows/ci.yml)
+
 跨平台的 Rime 个人词库管理工具，面向 **Linux（fcitx5-rime）** 与 **Windows（小狼毫 Weasel）**。
 
 Rime 的配置和词库都是可读的文本文件，灵活但日常维护麻烦：加个词、调个权重、改完还得手动重新部署。

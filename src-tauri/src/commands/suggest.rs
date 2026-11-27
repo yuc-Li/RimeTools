@@ -2,8 +2,8 @@
 
 use crate::state::AppState;
 use rime_core::types::{AppError, CandidatePreview, CodeSuggestion, ErrorCode, FileRole};
+use rime_ffi::preview::{probe_librime, unavailable_preview, RimePreview};
 use rime_suggest::SuggestEngine;
-use rime_ffi::preview::{unavailable_preview, probe_librime, RimePreview};
 use tauri::State;
 
 /// 生成编码建议（多候选，含警告）。
@@ -26,8 +26,11 @@ pub fn suggest_codes(
         None => state.active_scheme(),
     }
     .ok_or_else(|| {
-        AppError::new(ErrorCode::SchemeNotDetected, "未确定当前方案，无法生成编码建议")
-            .with_hint("请先完成环境探测")
+        AppError::new(
+            ErrorCode::SchemeNotDetected,
+            "未确定当前方案，无法生成编码建议",
+        )
+        .with_hint("请先完成环境探测")
     })?;
 
     // 编码建议的拼音数据源：优先用户本机字表（覆盖 8105 字、含多音字），

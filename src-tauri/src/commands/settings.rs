@@ -76,8 +76,9 @@ pub fn settings_open_dir(
                 .map(|f| f.user_dir)
         }),
         "backup" => Some(state.backup_dir()),
-        "log" => crate::settings_file::settings_path()
-            .and_then(|p| p.parent().map(|d| d.to_path_buf())),
+        "log" => {
+            crate::settings_file::settings_path().and_then(|p| p.parent().map(|d| d.to_path_buf()))
+        }
         other => Some(std::path::PathBuf::from(other)),
     }
     .ok_or_else(|| {

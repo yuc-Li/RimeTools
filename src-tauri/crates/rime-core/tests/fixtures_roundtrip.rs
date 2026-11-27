@@ -26,19 +26,34 @@ fn read_fixture(rel: &str) -> String {
 #[test]
 fn all_fixtures_roundtrip_byte_identical() {
     let cases = [
-        ("rime-crane-flypy/custom_phrase_double.txt", FileFormat::CustomPhrase),
+        (
+            "rime-crane-flypy/custom_phrase_double.txt",
+            FileFormat::CustomPhrase,
+        ),
         ("rime-crane-flypy/default.custom.yaml", FileFormat::PlainTxt),
-        ("rime-crane-flypy/rime_ice.dict.yaml", FileFormat::RimeDictYaml),
+        (
+            "rime-crane-flypy/rime_ice.dict.yaml",
+            FileFormat::RimeDictYaml,
+        ),
         ("rime-crane-xhup/xhup.dict.yaml", FileFormat::RimeDictYaml),
-        ("rime-crane-xhup/xhup.user.dict.yaml", FileFormat::RimeDictYaml),
-        ("rime-crane-xhup/xhup.user.top.dict.yaml", FileFormat::RimeDictYaml),
-        ("rime-crane-xhup/xhup.primary.sample.dict.yaml", FileFormat::RimeDictYaml),
+        (
+            "rime-crane-xhup/xhup.user.dict.yaml",
+            FileFormat::RimeDictYaml,
+        ),
+        (
+            "rime-crane-xhup/xhup.user.top.dict.yaml",
+            FileFormat::RimeDictYaml,
+        ),
+        (
+            "rime-crane-xhup/xhup.primary.sample.dict.yaml",
+            FileFormat::RimeDictYaml,
+        ),
     ];
 
     for (rel, format) in cases {
         let src = read_fixture(rel);
-        let parsed = ParsedDict::parse(&src, format)
-            .unwrap_or_else(|e| panic!("{rel} 解析失败: {e}"));
+        let parsed =
+            ParsedDict::parse(&src, format).unwrap_or_else(|e| panic!("{rel} 解析失败: {e}"));
         let (out, _) = parsed
             .serialize_default()
             .unwrap_or_else(|e| panic!("{rel} 序列化失败: {e}"));
@@ -52,7 +67,11 @@ fn custom_phrase_double_structure() {
     let src = read_fixture("rime-crane-flypy/custom_phrase_double.txt");
     let parsed = ParsedDict::parse(&src, FileFormat::CustomPhrase).unwrap();
 
-    assert!(parsed.entry_count() > 20, "应解析出全部短语，实际 {}", parsed.entry_count());
+    assert!(
+        parsed.entry_count() > 20,
+        "应解析出全部短语，实际 {}",
+        parsed.entry_count()
+    );
     assert!(!parsed.bom);
     assert!(!parsed.has_dirty());
 
@@ -116,7 +135,10 @@ fn user_top_dict_parses() {
     let parsed = ParsedDict::parse(&src, FileFormat::RimeDictYaml).unwrap();
     assert!(parsed.entry_count() >= 5, "置顶码表应有词条");
     assert!(parsed.find_entry("长短", "ihdr").is_some());
-    assert!(parsed.find_entry("示例词", "pxm").is_some(), "自定义码条目应保留");
+    assert!(
+        parsed.find_entry("示例词", "pxm").is_some(),
+        "自定义码条目应保留"
+    );
 }
 
 /// 编辑后仅目标行变化，其余字节不变（模拟「批量调权重」的最小场景）。

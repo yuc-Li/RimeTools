@@ -222,7 +222,11 @@ fn detect_managed_files(user_dir: &Path, raw: &SchemaRaw) -> Vec<ManagedFileRef>
                     id: format!("dict:{}", path.display()),
                     path,
                     format: FileFormat::RimeDictYaml,
-                    role: if is_top { FileRole::UserTopDict } else { FileRole::UserDict },
+                    role: if is_top {
+                        FileRole::UserTopDict
+                    } else {
+                        FileRole::UserDict
+                    },
                     columns: vec![ColumnKind::Text, ColumnKind::Code],
                 });
             }
@@ -295,7 +299,10 @@ mod tests {
         let text = std::fs::read_to_string(fixture_root().join("rime-crane-xhup/xhup.dict.yaml"))
             .expect("读取夹具失败");
         let imports = parse_import_tables(&text);
-        assert!(imports.iter().any(|s| s == "xhup_dicts/xhup.user"), "应找到用户码表 import");
+        assert!(
+            imports.iter().any(|s| s == "xhup_dicts/xhup.user"),
+            "应找到用户码表 import"
+        );
         assert!(
             imports.iter().any(|s| s == "xhup_dicts/xhup.user.top"),
             "应找到置顶码表 import"
@@ -313,8 +320,14 @@ mod tests {
         let raw = schema::parse_schema(&path).expect("解析小鹤双拼方案失败");
         assert_eq!(raw.schema_id, "double_pinyin_flypy");
         assert!(raw.is_double_pinyin, "应识别为双拼方案");
-        assert_eq!(raw.custom_phrase_user_dict.as_deref(), Some("custom_phrase_double"));
-        assert_eq!(raw.alphabet, "zyxwvutsrqponmlkjihgfedcbaZYXWVUTSRQPONMLKJIHGFEDCBA`");
+        assert_eq!(
+            raw.custom_phrase_user_dict.as_deref(),
+            Some("custom_phrase_double")
+        );
+        assert_eq!(
+            raw.alphabet,
+            "zyxwvutsrqponmlkjihgfedcbaZYXWVUTSRQPONMLKJIHGFEDCBA`"
+        );
         assert!(raw.algebra.is_some(), "双拼方案应有 algebra");
     }
 
@@ -360,14 +373,24 @@ mod real_env {
         for s in &schemes {
             println!(
                 "\n  {} ({}) 类型={:?} 双拼={} 启用={}\n    alphabet={:?} max_code_length={:?}",
-                s.name, s.schema_id, s.translator_kind, s.is_double_pinyin, s.is_active,
-                s.alphabet, s.max_code_length
+                s.name,
+                s.schema_id,
+                s.translator_kind,
+                s.is_double_pinyin,
+                s.is_active,
+                s.alphabet,
+                s.max_code_length
             );
             if s.managed_files.is_empty() {
                 println!("    受管文件: 无（该方案未挂载个人词条入口）");
             }
             for mf in &s.managed_files {
-                println!("    受管: {:?} {} 列={:?}", mf.role, mf.path.display(), mf.columns);
+                println!(
+                    "    受管: {:?} {} 列={:?}",
+                    mf.role,
+                    mf.path.display(),
+                    mf.columns
+                );
             }
         }
         assert!(!schemes.is_empty(), "应识别出方案");

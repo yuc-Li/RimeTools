@@ -88,10 +88,7 @@ impl EntryLine {
             }
         });
         // 若第三列存在但无法解析成数字，说明格式异常，降级为 Raw 以免写坏
-        if fields.len() >= 3
-            && !fields[2].trim().is_empty()
-            && weight.is_none()
-        {
+        if fields.len() >= 3 && !fields[2].trim().is_empty() && weight.is_none() {
             return None;
         }
         Some(Self {

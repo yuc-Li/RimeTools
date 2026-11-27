@@ -189,7 +189,8 @@ impl AppState {
         if let Some(ctl) = guard.as_ref() {
             return Arc::clone(ctl);
         }
-        let deployer: Arc<dyn rime_deploy::Deployer> = Arc::new(rime_deploy::Fcitx5Deployer::system());
+        let deployer: Arc<dyn rime_deploy::Deployer> =
+            Arc::new(rime_deploy::Fcitx5Deployer::system());
         let config = rime_deploy::DeployConfig::new(user_dir);
         let ctl = DeployController::new(deployer, config);
 
@@ -201,9 +202,9 @@ impl AppState {
             .as_ref()
             .cloned()
         {
-            ctl.set_observer(Some(Arc::new(move |state: &rime_core::types::DeployState| {
-                observer(state)
-            })));
+            ctl.set_observer(Some(Arc::new(
+                move |state: &rime_core::types::DeployState| observer(state),
+            )));
         }
 
         *guard = Some(Arc::clone(&ctl));

@@ -19,9 +19,7 @@ pub fn settings_path() -> Option<PathBuf> {
                 .map(PathBuf::from)
                 .map(|h| h.join(".config"))
         })
-        .or_else(|| {
-            std::env::var_os("APPDATA").map(|d| PathBuf::from(d).join("RimeTools"))
-        })?;
+        .or_else(|| std::env::var_os("APPDATA").map(|d| PathBuf::from(d).join("RimeTools")))?;
     Some(base.join("rimetools/settings.json"))
 }
 

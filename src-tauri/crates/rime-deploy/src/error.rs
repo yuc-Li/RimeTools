@@ -40,7 +40,6 @@ pub(crate) fn invalid_user_dir(user_dir: &std::path::Path) -> AppError {
 
 /// 部署执行了但未生效（产物比源文件旧）。
 pub(crate) fn deploy_failed(message: impl Into<String>) -> AppError {
-    AppError::new(ErrorCode::DeployFailed, message).with_hint(
-        "请重启 fcitx5（fcitx5 -r -d）后重新部署；仍失败可查看 rime 日志确认编译错误",
-    )
+    AppError::new(ErrorCode::DeployFailed, message)
+        .with_hint("请重启 fcitx5（fcitx5 -r -d）后重新部署；仍失败可查看 rime 日志确认编译错误")
 }

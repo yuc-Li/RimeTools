@@ -28,8 +28,12 @@ fn xhup_path() -> PathBuf {
 }
 
 fn open_flypy() -> DictStore {
-    DictStore::open(&flypy_path(), FileFormat::CustomPhrase, FileRole::CustomPhrase)
-        .expect("打开小鹤双拼短语表失败")
+    DictStore::open(
+        &flypy_path(),
+        FileFormat::CustomPhrase,
+        FileRole::CustomPhrase,
+    )
+    .expect("打开小鹤双拼短语表失败")
 }
 
 fn open_xhup() -> DictStore {
@@ -114,7 +118,11 @@ fn opens_xhup_user_dict_as_two_columns_without_weight() {
     assert_eq!(page.total, 23);
     // 两列文件：weight 一律为 None
     for entry in &page.items {
-        assert_eq!(entry.weight, None, "xhup 用户码表不应有权重：{}", entry.key.text);
+        assert_eq!(
+            entry.weight, None,
+            "xhup 用户码表不应有权重：{}",
+            entry.key.text
+        );
         assert_eq!(entry.origin, EntryOrigin::File);
         assert!(entry.line_no.is_some());
     }
@@ -193,7 +201,10 @@ fn sorts_by_text_code_and_weight() {
 
     let by_text = all(
         &store,
-        SortSpec { field: SortField::Text, desc: false },
+        SortSpec {
+            field: SortField::Text,
+            desc: false,
+        },
     );
     assert_eq!(by_text.items[0].key.text, "Amazon");
     assert!(by_text
@@ -203,7 +214,10 @@ fn sorts_by_text_code_and_weight() {
 
     let by_text_desc = all(
         &store,
-        SortSpec { field: SortField::Text, desc: true },
+        SortSpec {
+            field: SortField::Text,
+            desc: true,
+        },
     );
     assert_eq!(by_text_desc.items[0].key.text, "由");
     assert!(by_text_desc
@@ -213,7 +227,10 @@ fn sorts_by_text_code_and_weight() {
 
     let by_code = all(
         &store,
-        SortSpec { field: SortField::Code, desc: false },
+        SortSpec {
+            field: SortField::Code,
+            desc: false,
+        },
     );
     assert_eq!(by_code.items[0].key.code, "amazon");
     assert!(by_code
@@ -223,7 +240,10 @@ fn sorts_by_text_code_and_weight() {
 
     let by_weight = all(
         &store,
-        SortSpec { field: SortField::Weight, desc: false },
+        SortSpec {
+            field: SortField::Weight,
+            desc: false,
+        },
     );
     assert!(by_weight
         .items
@@ -233,7 +253,10 @@ fn sorts_by_text_code_and_weight() {
 
     let by_weight_desc = all(
         &store,
-        SortSpec { field: SortField::Weight, desc: true },
+        SortSpec {
+            field: SortField::Weight,
+            desc: true,
+        },
     );
     assert_eq!(by_weight_desc.items[0].key.text, "一");
     assert_eq!(by_weight_desc.items[0].weight, Some(4));
@@ -241,7 +264,10 @@ fn sorts_by_text_code_and_weight() {
     // 行号模式：严格等于文件行号顺序
     let by_line = all(
         &store,
-        SortSpec { field: SortField::LineNo, desc: false },
+        SortSpec {
+            field: SortField::LineNo,
+            desc: false,
+        },
     );
     assert!(by_line
         .items
@@ -381,7 +407,10 @@ fn stage_is_idempotent_for_the_same_request() {
     // 未编辑的行保持原样，且目标行按列风格重排
     assert!(first.contains("一个\tig\n"));
     assert!(first.contains("有\tu\t9\n"));
-    assert_eq!(first, baseline.replace("有\tu\t3\n", "有\tu\t9\n") + "测试词\tceshi\t0\n");
+    assert_eq!(
+        first,
+        baseline.replace("有\tu\t3\n", "有\tu\t9\n") + "测试词\tceshi\t0\n"
+    );
 }
 
 #[test]
@@ -457,10 +486,17 @@ fn stage_reorder_moves_entries_between_existing_slots() {
         .filter(|line| line.contains('\t') && !line.starts_with('#'))
         .collect();
     assert_eq!(entries.len(), 36);
-    assert_eq!(entries[0], "有\tu\t3", "重排只改变词条行顺序，行内容原样保留");
+    assert_eq!(
+        entries[0], "有\tu\t3",
+        "重排只改变词条行顺序，行内容原样保留"
+    );
     assert_eq!(entries[1], "一\ti\t4");
     assert_eq!(entries[2], "噷\thm", "未列出的词条按原顺序补在后面");
-    assert_eq!(out.lines().count(), baseline.lines().count(), "重排不增删行");
+    assert_eq!(
+        out.lines().count(),
+        baseline.lines().count(),
+        "重排不增删行"
+    );
 
     // 行号随新顺序更新，查询按行号排序与序列化一致
     let page = all(&store, SortSpec::default());
@@ -709,7 +745,9 @@ fn validation_flags_empty_fields_and_layout_breakers() {
     assert!(issues
         .iter()
         .any(|i| i.code == ErrorCode::ValidationFailed && i.text.as_deref() == Some("")));
-    assert!(issues.iter().any(|i| i.code == ErrorCode::FileFormatInvalid));
+    assert!(issues
+        .iter()
+        .any(|i| i.code == ErrorCode::FileFormatInvalid));
 
     // 防御：带坏字段的工作副本拒绝序列化（正常流程会先被 validate 拦下）
     let err = store.serialize().unwrap_err();
@@ -737,8 +775,7 @@ fn validation_flags_weight_that_parser_downgraded_to_raw() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("custom_phrase.txt");
     std::fs::write(&path, "一个\tig\n你好\tnihc\tabc\n").unwrap();
-    let store =
-        DictStore::open(&path, FileFormat::CustomPhrase, FileRole::CustomPhrase).unwrap();
+    let store = DictStore::open(&path, FileFormat::CustomPhrase, FileRole::CustomPhrase).unwrap();
 
     let issues = store.validate("abcdefghijklmnopqrstuvwxyz", None);
     let weight_issue = issues
@@ -824,11 +861,17 @@ fn perf_query_100k_entries_stays_within_budget() {
     let search = search_start.elapsed();
     println!("10 万条关键词查询：{search:?}，命中 {}", page.total);
     assert!(page.total >= 1);
-    assert!(search.as_millis() < 200, "关键词查询超过 200ms 预算：{search:?}");
+    assert!(
+        search.as_millis() < 200,
+        "关键词查询超过 200ms 预算：{search:?}"
+    );
 
     let sort_start = Instant::now();
     let page = store.query(&EntryQuery {
-        sort: SortSpec { field: SortField::Weight, desc: true },
+        sort: SortSpec {
+            field: SortField::Weight,
+            desc: true,
+        },
         offset: 50,
         limit: 100,
         ..EntryQuery::default()

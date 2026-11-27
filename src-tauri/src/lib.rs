@@ -3,9 +3,9 @@
 //! 业务逻辑一律在 `crates/*` 中实现，本 crate 只做 Tauri 集成。
 //! 命令注册集中在 [`commands`]，禁止在业务模块里直接写 `#[tauri::command]`（见 docs/ipc.md §8）。
 
-pub mod commands;
 pub mod backup_index;
 pub mod boot;
+pub mod commands;
 pub mod settings_file;
 pub mod state;
 
@@ -40,7 +40,10 @@ fn log_plugin() -> tauri::plugin::TauriPlugin<tauri::Wry> {
         .target(Target::new(TargetKind::Stdout));
 
     if let Some(dir) = writable_log_dir() {
-        builder = builder.target(Target::new(TargetKind::Folder { path: dir, file_name: None }));
+        builder = builder.target(Target::new(TargetKind::Folder {
+            path: dir,
+            file_name: None,
+        }));
     } else {
         // 找不到可写目录就只留 stdout，功能不受影响
         eprintln!("[RimeTools] 日志目录不可写，仅输出到 stdout");
@@ -74,15 +77,12 @@ fn writable_log_dir() -> Option<std::path::PathBuf> {
 fn deploy_from_tray(app: &tauri::AppHandle) {
     use tauri::Manager;
     let state = app.state::<state::AppState>();
-    let user_dir = state
-        .settings()
-        .user_dir
-        .or_else(|| {
-            rime_platform::detect_frontends()
-                .into_iter()
-                .next()
-                .map(|f| f.user_dir)
-        });
+    let user_dir = state.settings().user_dir.or_else(|| {
+        rime_platform::detect_frontends()
+            .into_iter()
+            .next()
+            .map(|f| f.user_dir)
+    });
     let Some(user_dir) = user_dir else {
         log::warn!("托盘部署失败：未确定 Rime 用户目录");
         return;
@@ -206,7 +206,9 @@ pub fn run() {
         .unwrap_or_else(|e| {
             // 不让用户只看到一句 panic 栈：给出可读原因与下一步
             eprintln!("RimeTools 启动失败：{e}");
-            eprintln!("如果反复出现，请检查显示服务（DISPLAY/WAYLAND_DISPLAY）与 ~/.local/share 可写性。");
+            eprintln!(
+                "如果反复出现，请检查显示服务（DISPLAY/WAYLAND_DISPLAY）与 ~/.local/share 可写性。"
+            );
             std::process::exit(1);
         });
 }

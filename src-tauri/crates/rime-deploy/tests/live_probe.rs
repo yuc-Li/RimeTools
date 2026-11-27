@@ -72,17 +72,15 @@ fn live_get_current_schema_is_read_only() {
 #[test]
 #[ignore = "需要本机真实 fcitx5-rime 环境；只读，不触发部署"]
 fn live_report_build_freshness() {
-    let user_dir = std::path::PathBuf::from(
-        std::env::var("HOME").expect("需要 HOME"),
-    )
-    .join(".local/share/fcitx5/rime");
+    let user_dir = std::path::PathBuf::from(std::env::var("HOME").expect("需要 HOME"))
+        .join(".local/share/fcitx5/rime");
     if !user_dir.is_dir() {
         eprintln!("跳过：未找到 {}", user_dir.display());
         return;
     }
     let build_dir = user_dir.join("build");
-    let up_to_date = rime_deploy::build_is_up_to_date(&user_dir, &build_dir)
-        .expect("新鲜度诊断失败");
+    let up_to_date =
+        rime_deploy::build_is_up_to_date(&user_dir, &build_dir).expect("新鲜度诊断失败");
     println!("用户目录: {}", user_dir.display());
     println!("构建目录: {}", build_dir.display());
     println!("产物是否已最新: {up_to_date}");

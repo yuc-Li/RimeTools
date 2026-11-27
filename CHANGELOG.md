@@ -5,12 +5,14 @@
 记录格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
-发布新版本时的清单：
+发布新版本时执行：
 
-1. 在下方新增版本小节（填入日期）
-2. 同步版本号：`package.json`、`src-tauri/Cargo.toml`、`src-tauri/tauri.conf.json`
-3. `./scripts/package.sh` 重新打包
-4. 提交并打 tag：`git tag -a v0.1.0 -m "v0.1.0"`
+```bash
+./scripts/release.sh 0.2.0
+```
+
+脚本会自动同步版本号、跑测试、打包、打 tag 并推送，随后由 GitHub Actions 构建并创建 Release。
+完整流程见 [docs/RELEASING.md](docs/RELEASING.md)。
 
 版本号含义：`0.x` 为快速迭代期，接口与文件格式仍可能调整；`1.0.0` 表示功能与数据格式稳定。
 

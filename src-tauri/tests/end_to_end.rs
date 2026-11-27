@@ -9,9 +9,7 @@
 //! 全部操作在 `tempfile` 的副本上进行，**绝不触碰用户真实 Rime 目录**。
 
 use rime_core::store::DictStore;
-use rime_core::types::{
-    ColumnKind, EntryQuery, FileFormat, FileRole, NewEntry, SaveRequest,
-};
+use rime_core::types::{ColumnKind, EntryQuery, FileFormat, FileRole, NewEntry, SaveRequest};
 use rime_safety::{save_file, WriteSafetyOptions};
 use std::path::{Path, PathBuf};
 
@@ -58,7 +56,10 @@ fn add_entry_full_cycle_on_custom_phrase() {
     let mut store =
         DictStore::open(&path, FileFormat::CustomPhrase, FileRole::CustomPhrase).expect("打开失败");
     assert!(store.total() > 20, "应读出全部短语，实际 {}", store.total());
-    assert_eq!(store.columns(), &[ColumnKind::Text, ColumnKind::Code, ColumnKind::Weight]);
+    assert_eq!(
+        store.columns(),
+        &[ColumnKind::Text, ColumnKind::Code, ColumnKind::Weight]
+    );
 
     // 2) 暂存新增
     let req = save_request(
@@ -100,17 +101,24 @@ fn add_entry_full_cycle_on_custom_phrase() {
     let reopened =
         DictStore::open(&path, FileFormat::CustomPhrase, FileRole::CustomPhrase).expect("重开失败");
     assert!(
-        reopened.query(&EntryQuery {
-            file_id: Some(path.display().to_string()),
-            keyword: Some("中州韵".to_owned()),
-            ..Default::default()
-        }).total == 1,
+        reopened
+            .query(&EntryQuery {
+                file_id: Some(path.display().to_string()),
+                keyword: Some("中州韵".to_owned()),
+                ..Default::default()
+            })
+            .total
+            == 1,
         "新增词条应可检索"
     );
 
     // 6) 关键护栏：既有内容逐字节未变（只多了一行）
     let after = std::fs::read_to_string(&path).expect("读取结果失败");
-    assert_eq!(after, format!("{before}中州韵\tvsvzyy\t100\n"), "既有字节必须完全一致");
+    assert_eq!(
+        after,
+        format!("{before}中州韵\tvsvzyy\t100\n"),
+        "既有字节必须完全一致"
+    );
 }
 
 #[test]
@@ -196,11 +204,17 @@ fn xhup_user_dict_keeps_two_columns_and_headers() {
 
     let after = std::fs::read_to_string(&path).unwrap();
     // 头注释与 YAML 头必须保留（方案靠它识别码表用途）
-    assert!(after.contains("#---config@码表分类=主码-用户码表"), "头注释丢失");
+    assert!(
+        after.contains("#---config@码表分类=主码-用户码表"),
+        "头注释丢失"
+    );
     assert!(after.contains("sort: by_weight"), "YAML 头丢失");
     // 新增行必须是两列（不能凭空长出权重列）。
     // 该文件是 CRLF 换行，序列化须保留原换行风格。
-    assert!(after.contains("代码\tdacd\r\n"), "新增行格式错误（应两列 + 保留 CRLF）");
+    assert!(
+        after.contains("代码\tdacd\r\n"),
+        "新增行格式错误（应两列 + 保留 CRLF）"
+    );
     assert!(
         after.contains("\r\n代码\tdacd\r\n"),
         "新增行须接在既有行之后，实际尾部：{:?}",
@@ -209,7 +223,9 @@ fn xhup_user_dict_keeps_two_columns_and_headers() {
     assert!(!after.contains("代码\tdacd\t"), "两列文件不应写入第三列");
     // 既有内容前缀不变
     let prefix_len = before.trim_end_matches('\n').len();
-    assert!(after.starts_with(&before[..prefix_len.min(before.len())]) || after.len() > before.len());
+    assert!(
+        after.starts_with(&before[..prefix_len.min(before.len())]) || after.len() > before.len()
+    );
 }
 
 #[test]

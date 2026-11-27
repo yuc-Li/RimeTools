@@ -36,7 +36,9 @@ use crate::types::{
     ErrorCode, FileFormat, FileId, FileRole, Fingerprint, GroupCount, SaveRequest, SortField,
     SortSpec, ValidationIssue,
 };
-use crate::{detect_columns, fingerprint_bytes, validate_dict, EntryLine, Line, ParsedDict, WriteOptions};
+use crate::{
+    detect_columns, fingerprint_bytes, validate_dict, EntryLine, Line, ParsedDict, WriteOptions,
+};
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -95,7 +97,10 @@ impl DictStore {
             .map_err(|_| {
                 AppError::new(
                     ErrorCode::Internal,
-                    format!("文件修改时间早于 UNIX 纪元，无法生成指纹：{}", path.display()),
+                    format!(
+                        "文件修改时间早于 UNIX 纪元，无法生成指纹：{}",
+                        path.display()
+                    ),
                 )
             })?;
         let fingerprint = Fingerprint {
@@ -177,7 +182,11 @@ impl DictStore {
     pub fn query(&self, q: &EntryQuery) -> EntryPage {
         if let Some(file_id) = &q.file_id {
             if file_id != &self.file_id {
-                return EntryPage { items: Vec::new(), total: 0, groups: Vec::new() };
+                return EntryPage {
+                    items: Vec::new(),
+                    total: 0,
+                    groups: Vec::new(),
+                };
             }
         }
 
@@ -250,7 +259,11 @@ impl DictStore {
             .take(q.limit as usize)
             .collect();
 
-        EntryPage { items, total, groups }
+        EntryPage {
+            items,
+            total,
+            groups,
+        }
     }
 
     /// 分组计数（含「未分组」）。
@@ -260,10 +273,7 @@ impl DictStore {
         let mut ordinal = 0usize;
         let groups = self.working.lines.iter().filter_map(|line| {
             if matches!(line, Line::Entry(_)) {
-                let g = self
-                    .working_groups
-                    .get(ordinal)
-                    .and_then(|g| g.as_deref());
+                let g = self.working_groups.get(ordinal).and_then(|g| g.as_deref());
                 ordinal += 1;
                 Some(g)
             } else {
@@ -481,10 +491,8 @@ impl DictStore {
                 changed = true;
             }
 
-            let reordered: Vec<(EntryLine, Option<String>)> = order_indices
-                .iter()
-                .map(|&i| pairs[i].clone())
-                .collect();
+            let reordered: Vec<(EntryLine, Option<String>)> =
+                order_indices.iter().map(|&i| pairs[i].clone()).collect();
             let reordered_groups: Vec<Option<String>> =
                 reordered.iter().map(|(_, g)| g.clone()).collect();
             for (slot, (entry, _)) in slots.iter().zip(reordered) {
@@ -644,7 +652,11 @@ fn sort_entries(items: &mut [Entry], spec: &SortSpec) {
                 .unwrap_or(u32::MAX)
                 .cmp(&b.line_no.unwrap_or(u32::MAX)),
         };
-        let primary = if spec.desc { primary.reverse() } else { primary };
+        let primary = if spec.desc {
+            primary.reverse()
+        } else {
+            primary
+        };
         // 平局用行号升序兜底：保证分页稳定（同一查询不会重复/漏项）
         primary.then_with(|| {
             a.line_no
@@ -662,10 +674,16 @@ fn counts_of<'a>(groups: impl Iterator<Item = Option<&'a str>>) -> Vec<GroupCoun
     }
     let mut out = Vec::with_capacity(counts.len());
     if let Some(count) = counts.remove(UNGROUPED) {
-        out.push(GroupCount { name: UNGROUPED.to_owned(), count });
+        out.push(GroupCount {
+            name: UNGROUPED.to_owned(),
+            count,
+        });
     }
     for (name, count) in counts {
-        out.push(GroupCount { name: name.to_owned(), count });
+        out.push(GroupCount {
+            name: name.to_owned(),
+            count,
+        });
     }
     out
 }
@@ -726,11 +744,8 @@ fn parse_error(path: &Path, source: crate::ParseError) -> AppError {
             Some("文件超出词库大小上限，暂不支持打开"),
         ),
     };
-    let mut error = AppError::new(
-        code,
-        format!("解析失败：{}：{source}", path.display()),
-    )
-    .with_detail(source.to_string());
+    let mut error = AppError::new(code, format!("解析失败：{}：{source}", path.display()))
+        .with_detail(source.to_string());
     if let Some(hint) = hint {
         error = error.with_hint(hint);
     }

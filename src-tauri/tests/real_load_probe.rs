@@ -17,10 +17,19 @@ fn real_workbench_load_chain() {
     for s in &schemes {
         println!(
             "  {} ({}) translator={:?} active={} 受管文件={}",
-            s.name, s.schema_id, s.translator_kind, s.is_active, s.managed_files.len()
+            s.name,
+            s.schema_id,
+            s.translator_kind,
+            s.is_active,
+            s.managed_files.len()
         );
         for mf in &s.managed_files {
-            println!("     [{:?}] {} 列={:?}", mf.role, mf.path.display(), mf.columns);
+            println!(
+                "     [{:?}] {} 列={:?}",
+                mf.role,
+                mf.path.display(),
+                mf.columns
+            );
             match DictStore::open(&mf.path, mf.format, mf.role) {
                 Ok(store) => {
                     println!("      打开成功 total={}", store.total());
@@ -33,7 +42,10 @@ fn real_workbench_load_chain() {
                     });
                     println!("      查询 total={} items={}", page.total, page.items.len());
                     for e in page.items.iter().take(3) {
-                        println!("        {:?} code={} weight={:?}", e.key.text, e.key.code, e.weight);
+                        println!(
+                            "        {:?} code={} weight={:?}",
+                            e.key.text, e.key.code, e.weight
+                        );
                     }
                     assert!(
                         !(page.items.is_empty() && store.total() > 0),

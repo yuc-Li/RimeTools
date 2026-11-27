@@ -303,8 +303,9 @@ mod tests {
     fn flags_third_column_in_two_column_file() {
         let d = parse("一个\tig\n美团\tmwtr\t100\n");
         let issues = validate_dict(&d, &COLS2, "abcdefghijklmnopqrstuvwxyz", None);
-        assert!(issues.iter().any(|i| i.code == ErrorCode::ValidationFailed
-            && i.message.contains("列")));
+        assert!(issues
+            .iter()
+            .any(|i| i.code == ErrorCode::ValidationFailed && i.message.contains("列")));
     }
 
     #[test]
@@ -341,6 +342,8 @@ mod tests {
         let d = parse("测试\tabcd-\n");
         let issues = validate_dict(&d, &COLS2, "abcdefghijklmnopqrstuvwxyz", Some(4));
         assert!(issues.iter().any(|i| i.code == ErrorCode::CodeTooLong));
-        assert!(issues.iter().any(|i| i.code == ErrorCode::CodeCharsetInvalid));
+        assert!(issues
+            .iter()
+            .any(|i| i.code == ErrorCode::CodeCharsetInvalid));
     }
 }

@@ -20,11 +20,11 @@ pub fn env_detect(state: State<'_, AppState>) -> Result<EnvDetectResult, AppErro
     let frontends = rime_platform::detect_frontends();
 
     if frontends.is_empty() {
-        return Err(AppError::new(
-            ErrorCode::FrontendNotFound,
-            "未检测到 Rime 输入法前端",
-        )
-        .with_hint("请确认已安装 fcitx5-rime（Linux）或小狼毫（Windows），或手动指定用户目录"));
+        return Err(
+            AppError::new(ErrorCode::FrontendNotFound, "未检测到 Rime 输入法前端").with_hint(
+                "请确认已安装 fcitx5-rime（Linux）或小狼毫（Windows），或手动指定用户目录",
+            ),
+        );
     }
 
     let active = if frontends.len() == 1 {
@@ -75,10 +75,11 @@ pub fn env_list_schemes(
     }
 
     if !dir.is_dir() {
-        return Err(
-            AppError::new(ErrorCode::UserDirInvalid, format!("用户目录不存在：{}", dir.display()))
-                .with_hint("请检查路径是否正确"),
-        );
+        return Err(AppError::new(
+            ErrorCode::UserDirInvalid,
+            format!("用户目录不存在：{}", dir.display()),
+        )
+        .with_hint("请检查路径是否正确"));
     }
 
     let schemes = rime_platform::detect_schemes(&dir);
@@ -109,11 +110,10 @@ pub fn env_set_user_dir(
     }
     let schemes = rime_platform::detect_schemes(&dir);
     if schemes.is_empty() {
-        return Err(AppError::new(
-            ErrorCode::SchemeNotDetected,
-            "该目录下未找到 Rime 方案文件",
-        )
-        .with_hint("请选择 Rime 用户目录，例如 ~/.local/share/fcitx5/rime"));
+        return Err(
+            AppError::new(ErrorCode::SchemeNotDetected, "该目录下未找到 Rime 方案文件")
+                .with_hint("请选择 Rime 用户目录，例如 ~/.local/share/fcitx5/rime"),
+        );
     }
     state.update_settings(|s| s.user_dir = Some(dir));
     state.register_schemes(&schemes);

@@ -1,0 +1,121 @@
+name: Release
+
+# 触发方式：
+#   1. 推送版本 tag（推荐）：git push origin v0.1.0
+#   2. 手动触发，填入已存在的 tag
+#
+# 产物：deb + 便携 tarball，附带从 CHANGELOG.md 提取的发布说明。
+# 版本号来自 package.json / Cargo.toml（发布前请先跑 ./scripts/release.sh 保持一致）。
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "要发布的 tag（如 v0.1.0），需已存在"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.event.inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  TAG: ${{ github.event.inputs.tag || github.ref_name }}
+
+jobs:
+  build-and-release:
+    name: 构建并发布
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+
+      - name: 安装系统依赖
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            librime-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            dpkg-dev
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: 安装前端依赖
+        run: npm ci
+
+      - name: 校验版本号一致性
+        run: |
+          VERSION="${TAG#v}"
+          PKG=$(node -p "require('./package.json').version")
+          CARGO=$(grep -m1 '^version' src-tauri/Cargo.toml | sed -E 's/.*"(.*)".*/\1/')
+          TAURI=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          echo "tag=$VERSION package=$PKG cargo=$CARGO tauri=$TAURI"
+          if [ "$VERSION" != "$PKG" ] || [ "$VERSION" != "$CARGO" ] || [ "$VERSION" != "$TAURI" ]; then
+            echo "::error::版本号不一致：tag=$VERSION package.json=$PKG Cargo.toml=$CARGO tauri.conf.json=$TAURI"
+            exit 1
+          fi
+          if ! grep -q "^## \[$VERSION\]" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md 中没有 $VERSION 的小节"
+            exit 1
+          fi
+
+      - name: 测试
+        run: |
+          npm run typecheck
+          npm test
+          cd src-tauri && cargo test --workspace
+
+      - name: 构建 release 二进制
+        run: |
+          npm run build
+          cd src-tauri && cargo build -p rimetools --release --features custom-protocol
+
+      - name: 打包 deb 与便携包
+        run: ./scripts/package.sh --no-build
+
+      - name: 生成发布说明
+        run: python3 scripts/release-notes.py "${TAG#v}" > RELEASE_NOTES.md
+
+      - name: 展示发布说明
+        run: cat RELEASE_NOTES.md
+
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: rimetools-linux-${{ env.TAG }}
+          path: |
+            dist-pkg/*.deb
+            dist-pkg/*.tar.gz
+          if-no-files-found: error
+
+      - name: 创建 GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG }}
+          name: RimeTools ${{ env.TAG }}
+          body_path: RELEASE_NOTES.md
+          # 0.x 标记为预发布；升到 1.0.0 后自动转为正式版本
+          prerelease: ${{ startsWith(env.TAG, 'v0.') }}
+          draft: false
+          files: |
+            dist-pkg/*.deb
+            dist-pkg/*.tar.gz
+          fail_on_unmatched_files: true

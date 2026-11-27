@@ -35,11 +35,8 @@ pub struct ValidateResult {
 #[tauri::command]
 pub fn dict_open(file_id: FileId, state: State<'_, AppState>) -> Result<DictOpenResult, AppError> {
     let file_ref = state.managed_file(&file_id).ok_or_else(|| {
-        AppError::new(
-            ErrorCode::NotFound,
-            format!("未注册的受管文件：{file_id}"),
-        )
-        .with_hint("请先调用 env_list_schemes 完成环境探测")
+        AppError::new(ErrorCode::NotFound, format!("未注册的受管文件：{file_id}"))
+            .with_hint("请先调用 env_list_schemes 完成环境探测")
     })?;
 
     let store = DictStore::open(&file_ref.path, file_ref.format, file_ref.role.clone())?;
@@ -119,10 +116,7 @@ pub fn dict_validate(
 
 /// 保存：暂存 → 校验 → 备份+原子写 → 刷新 → 可选部署。
 #[tauri::command]
-pub fn dict_save(
-    request: SaveRequest,
-    state: State<'_, AppState>,
-) -> Result<SaveResult, AppError> {
+pub fn dict_save(request: SaveRequest, state: State<'_, AppState>) -> Result<SaveResult, AppError> {
     let file_id = request.file_id.clone();
     let file_ref = state
         .managed_file(&file_id)
@@ -160,7 +154,10 @@ pub fn dict_save(
         backup_dir: Some(state.backup_dir()),
         fingerprint_policy: Default::default(),
         validate_staged_utf8: true,
-        prune_keep_count: settings.backup.enabled.then_some(settings.backup.keep_count),
+        prune_keep_count: settings
+            .backup
+            .enabled
+            .then_some(settings.backup.keep_count),
     };
 
     let outcome = save_file(
@@ -176,10 +173,7 @@ pub fn dict_save(
     })?;
 
     // 记录写前自动备份的原因，保证备份页显示「写前自动」而不是未知
-    crate::backup_index::record(
-        &state.backup_dir(),
-        std::slice::from_ref(&outcome.backup),
-    );
+    crate::backup_index::record(&state.backup_dir(), std::slice::from_ref(&outcome.backup));
 
     // 3) 固化暂存态并刷新指纹。
     //    这里**不能**重新 DictStore::open：group 是工具级内存元数据，
@@ -189,7 +183,10 @@ pub fn dict_save(
 
     // 4) 可选部署
     let deploy = if request.deploy_after && settings.auto_deploy_after_save {
-        Some(trigger_deploy(&state, rime_core::types::DeployTrigger::AfterSave)?)
+        Some(trigger_deploy(
+            &state,
+            rime_core::types::DeployTrigger::AfterSave,
+        )?)
     } else {
         None
     };
@@ -210,9 +207,17 @@ pub(crate) fn trigger_deploy(
     let user_dir = state
         .settings()
         .user_dir
-        .or_else(|| rime_platform::detect_frontends().into_iter().next().map(|f| f.user_dir))
+        .or_else(|| {
+            rime_platform::detect_frontends()
+                .into_iter()
+                .next()
+                .map(|f| f.user_dir)
+        })
         .ok_or_else(|| {
-            AppError::new(ErrorCode::DeployUnavailable, "未确定 Rime 用户目录，无法部署")
+            AppError::new(
+                ErrorCode::DeployUnavailable,
+                "未确定 Rime 用户目录，无法部署",
+            )
         })?;
 
     let controller = state.deploy_controller(&user_dir);

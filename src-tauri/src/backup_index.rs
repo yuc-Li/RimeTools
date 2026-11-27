@@ -118,7 +118,10 @@ mod tests {
     #[test]
     fn reason_survives_listing() {
         let dir = tempfile::tempdir().unwrap();
-        let manual = sample("/bak/custom_phrase_double.txt_20260101_120000.bak", BackupReason::Manual);
+        let manual = sample(
+            "/bak/custom_phrase_double.txt_20260101_120000.bak",
+            BackupReason::Manual,
+        );
         record(dir.path(), std::slice::from_ref(&manual));
 
         // 模拟从磁盘重建列表（reason 被重置为 BeforeWrite）
@@ -128,7 +131,11 @@ mod tests {
         )];
         apply(dir.path(), &mut listed);
 
-        assert_eq!(listed[0].reason, BackupReason::Manual, "手动备份的原因应被索引恢复");
+        assert_eq!(
+            listed[0].reason,
+            BackupReason::Manual,
+            "手动备份的原因应被索引恢复"
+        );
     }
 
     #[test]

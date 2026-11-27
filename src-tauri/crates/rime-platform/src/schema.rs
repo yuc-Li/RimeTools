@@ -81,9 +81,10 @@ pub fn parse_schema_str(text: &str) -> Result<SchemaRaw, SchemaParseError> {
         .filter_map(|t| t.as_str().map(|s| s.trim()))
         .collect();
 
-    let primary = names
-        .iter()
-        .find(|s| !s.contains('@') && (s.starts_with("script_translator") || s.starts_with("table_translator")));
+    let primary = names.iter().find(|s| {
+        !s.contains('@')
+            && (s.starts_with("script_translator") || s.starts_with("table_translator"))
+    });
 
     let translator_kind = match primary {
         Some(s) if s.starts_with("script_translator") => TranslatorKind::Script,
@@ -92,9 +93,7 @@ pub fn parse_schema_str(text: &str) -> Result<SchemaRaw, SchemaParseError> {
     };
 
     // ── custom_phrase 挂载 ──
-    let has_custom_phrase_translator = names
-        .iter()
-        .any(|s| *s == "table_translator@custom_phrase");
+    let has_custom_phrase_translator = names.iter().any(|s| *s == "table_translator@custom_phrase");
     let custom_phrase_user_dict = if has_custom_phrase_translator {
         value
             .get("custom_phrase")
@@ -192,10 +191,16 @@ mod tests {
         assert_eq!(raw.name, "小鹤双拼");
         assert!(raw.is_double_pinyin);
         assert_eq!(raw.translator_kind, TranslatorKind::Script);
-        assert_eq!(raw.custom_phrase_user_dict.as_deref(), Some("custom_phrase_double"));
+        assert_eq!(
+            raw.custom_phrase_user_dict.as_deref(),
+            Some("custom_phrase_double")
+        );
         assert_eq!(raw.primary_dictionary.as_deref(), Some("rime_ice"));
         let algebra = raw.algebra.expect("应有 algebra");
-        assert!(algebra.rules.iter().any(|r| r.contains("Ⓠ")), "应含圈字母规则");
+        assert!(
+            algebra.rules.iter().any(|r| r.contains("Ⓠ")),
+            "应含圈字母规则"
+        );
     }
 
     #[test]
