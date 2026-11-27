@@ -151,6 +151,9 @@ impl PinyinSource for HashMap<char, Vec<String>> {
 /// 多音字列多个读音，供多候选输出使用。
 const BUILTIN_PINYIN: &str = r#"
 # —— 示例词条（回归用例覆盖）——
+中 zhong1 zhong4
+州 zhou1
+韵 yun4
 报 bao4
 关 guan1
 单 dan1 shan4 chan2
