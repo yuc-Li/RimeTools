@@ -30,7 +30,8 @@
     "active": true,
     "targets": [
       "deb",
-      "appimage"
+      "appimage",
+      "nsis"
     ],
     "icon": [
       "icons/32x32.png",
@@ -39,10 +40,23 @@
       "icons/128x128.png",
       "icons/256x256.png",
       "icons/512x512.png",
-      "icons/icon.png"
+      "icons/icon.png",
+      "icons/icon.ico"
     ],
     "category": "Utility",
     "shortDescription": "跨平台 Rime 词库管理工具",
-    "longDescription": "面向小狼毫与 fcitx5-rime 用户的个人词库工作台：词库维护、编码建议、备份恢复、一键部署。"
+    "longDescription": "面向小狼毫与 fcitx5-rime 用户的个人词库工作台：词库维护、编码建议、备份恢复、一键部署。",
+    "windows": {
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper"
+      },
+      "nsis": {
+        "installMode": "currentUser",
+        "languages": [
+          "SimpChinese",
+          "English"
+        ]
+      }
+    }
   }
 }

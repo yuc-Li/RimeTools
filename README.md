@@ -75,6 +75,12 @@ RimeTools 把这些高频操作做成图形界面，并保证改写时**不破�
 
 不硬编码方案名：新增方案只要结构符合，就能被识别。
 
+## 在 Windows 上开发
+
+Windows 端的编译、测试与打包步骤见 [docs/WINDOWS.md](docs/WINDOWS.md)。
+该文档同时列出了当前完成度：**词库维护、导入导出、反查、方案配置可用，
+「一键部署」尚未实现**（需调用 WeaselDeployer）。
+
 ## 安装
 
 Linux 从 Release 下载：

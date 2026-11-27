@@ -162,6 +162,13 @@ def main() -> None:
         tray.resize((px, px), Image.Resampling.LANCZOS).save(OUT / name, "PNG", optimize=True)
         print(f"  {name:14} {px}x{px}（托盘）")
 
+    # Windows 打包需要 .ico（多尺寸内嵌，Tauri 与资源管理器都用得上）
+    ico_sizes = [16, 24, 32, 48, 64, 128, 256]
+    ico_images = [big.resize((n, n), Image.Resampling.LANCZOS) for n in ico_sizes]
+    ico_path = OUT / "icon.ico"
+    ico_images[-1].save(ico_path, format="ICO", sizes=[(n, n) for n in ico_sizes])
+    print(f"  icon.ico        {', '.join(str(n) for n in ico_sizes)}（Windows）")
+
     # 参考大图（便于肉眼校对，不参与打包）
     big.resize((1024, 1024), Image.Resampling.LANCZOS).save(OUT / "icon-1024.png", "PNG")
     print("  icon-1024.png  1024x1024（预览用）")

@@ -66,9 +66,13 @@ pub fn detect_frontends() -> Vec<FrontendInfo> {
                 user_dir: dir,
                 shared_dir: None,
                 deploy_capability: DeployCapability {
-                    supported: true,
+                    // WeaselDeployer 的调用尚未实现（计划见 docs/WINDOWS.md）。
+                    // 这里如实报告「不支持」，避免界面显示可用但点了没反应。
+                    supported: false,
                     method: "weasel-deployer".to_owned(),
-                    note: Some("调用 WeaselDeployer.exe /deploy".to_owned()),
+                    note: Some(
+                        "Windows 部署尚未实现；暂请在托盘图标右键「重新部署」".to_owned(),
+                    ),
                 },
             });
         }
