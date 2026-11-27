@@ -36,6 +36,8 @@ npm run typecheck && npm test              # 前端
 - **版本号三处同步**：`package.json`、`src-tauri/Cargo.toml`、`src-tauri/tauri.conf.json`，
   用 `scripts/release.sh` 就不会漏
 - 提交前跑 `cargo fmt --all`；clippy 目前有少量风格警告，不阻断
+- **不要每次改动都跑全量测试**：日常用 `cargo check` / `npx tsc --noEmit` 快速验证即可，
+  全量 `cargo test --workspace` 与 `npm test` 留到**准备推送或发布**时再跑
 
 ## AI 辅助开发
 

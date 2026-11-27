@@ -410,7 +410,7 @@ enum Theme { System, Light, Dark }
 
 ---
 
-### 3.10 方案配置 `scheme_config_*`（M2 设置增强）
+### 3.10 方案配置 `scheme_config_*`（M2，前端入口：「输入法」页）
 
 | 命令 | 入参 | 出参 |
 | --- | --- | --- |

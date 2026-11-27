@@ -4,6 +4,7 @@ import Deploy from "./pages/deploy/Deploy";
 import Backup from "./pages/backup/Backup";
 import Settings from "./pages/settings/Settings";
 import Lookup from "./pages/lookup/Lookup";
+import SchemeConfig from "./pages/scheme/SchemeConfig";
 import { call, isTauri, onSettingsChanged } from "./ipc/client";
 import type { AppSettings, Theme } from "./ipc/types";
 
@@ -17,11 +18,12 @@ import type { AppSettings, Theme } from "./ipc/types";
  *   设置页保存后经 `onSettingsChanged()` 通知，立即生效、无需刷新。
  */
 
-type Tab = "workbench" | "lookup" | "deploy" | "backup" | "settings";
+type Tab = "workbench" | "lookup" | "scheme" | "deploy" | "backup" | "settings";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "workbench", label: "词库工作台" },
   { id: "lookup", label: "反查" },
+  { id: "scheme", label: "输入法" },
   { id: "deploy", label: "部署" },
   { id: "backup", label: "备份" },
   { id: "settings", label: "设置" },
@@ -102,6 +104,7 @@ export default function App() {
       <div className="app__body">
         {tab === "workbench" && <Workbench />}
         {tab === "lookup" && <Lookup />}
+        {tab === "scheme" && <SchemeConfig />}
         {tab === "deploy" && <Deploy />}
         {tab === "backup" && <Backup />}
         {tab === "settings" && <Settings />}

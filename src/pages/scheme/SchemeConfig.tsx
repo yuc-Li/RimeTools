@@ -1,13 +1,13 @@
 /**
- * 输入法配置章节（M2 设置增强）：表驱动的方案配置编辑。
+ * 输入法配置页：按方案调整输入行为与词表挂载。
  *
- * 配置项目录由后端 `OPTION_SPECS` 提供（字段依据 Rime 官方文档：
- * RimeWithSchemata、Schema.yaml 詳解、rime-prelude/default.yaml），
- * 前端只负责按类型渲染控件，不硬编码字段名。
+ * 为什么单独成页：这里的每一项都直接改变输入法怎么工作（上屏、候选、造词、挂载），
+ * 与「设置」里的工具自身偏好（主题、备份策略、目录）不是一类东西；选项有 20 多项，
+ * 塞在设置页会把页面拉得很长。
  *
  * 写入位置与安全性：
- * - 所有项都写 `<方案>.custom.yaml` 的 `patch:`（Rime 官方覆盖机制），
- *   不直接改上游方案文件；「恢复默认」= 从 patch 里删除该键；
+ * - 行为配置写 `<方案>.custom.yaml` 的 `patch:`（Rime 官方覆盖机制），
+ *   不直接改上游方案文件；「恢复默认」= 从 patch 删除该键；
  * - 词表挂载只能改主词典（Rime 没有词典补丁机制），仅切换行首 `# ` 前缀；
  * - 两条路径都有写前备份与指纹校验，文件被外部改动时拒绝覆盖。
  */
@@ -23,10 +23,11 @@ import type {
   SchemeInfo,
 } from "../../ipc/types";
 import { Badge } from "../../components/Feedback";
-import { settingsApi } from "./api";
-import { Banner, Section } from "./sections";
+import { schemeApi } from "./api";
+import "./scheme.css";
 
-export function SchemeConfigSection({ schemes }: { schemes: SchemeInfo[] | null }) {
+export default function SchemeConfig() {
+  const [schemes, setSchemes] = useState<SchemeInfo[] | null>(null);
   const [schemaId, setSchemaId] = useState<string | null>(null);
   const [snapshot, setSnapshot] = useState<SchemeConfigSnapshot | null>(null);
   const [loading, setLoading] = useState(false);
@@ -44,7 +45,11 @@ export function SchemeConfigSection({ schemes }: { schemes: SchemeInfo[] | null 
     setNotice(null);
     setDraft({});
     try {
-      const snap = await settingsApi.getSchemeConfig(id);
+      const [list, snap] = await Promise.all([
+        schemeApi.listSchemes(),
+        schemeApi.getConfig(id),
+      ]);
+      setSchemes(list);
       setSnapshot(snap);
       setMounts(Object.fromEntries(snap.mounts.map((m) => [m.name, m.enabled])));
     } catch (e) {
@@ -59,7 +64,6 @@ export function SchemeConfigSection({ schemes }: { schemes: SchemeInfo[] | null 
     void load(null);
   }, [load]);
 
-  /** 当前值：草稿优先，否则用快照值 */
   const valueOf = useCallback(
     (opt: OptionState): OptionValue | null =>
       opt.key in draft ? draft[opt.key] : opt.value,
@@ -72,7 +76,6 @@ export function SchemeConfigSection({ schemes }: { schemes: SchemeInfo[] | null 
     for (const [key, v] of Object.entries(draft)) {
       const opt = snapshot.options.find((o) => o.key === key);
       if (!opt) continue;
-      // 与当前生效值相同则不算改动
       if (v === opt.value) continue;
       out.push({ key, value: v });
     }
@@ -88,15 +91,6 @@ export function SchemeConfigSection({ schemes }: { schemes: SchemeInfo[] | null 
 
   const dirty = optionUpdates.length > 0 || changedMounts.length > 0;
 
-  const setValue = (key: string, value: OptionValue | null) => {
-    setDraft((prev) => ({ ...prev, [key]: value }));
-  };
-
-  const resetOption = (opt: OptionState) => {
-    // 恢复默认 = 从 patch 删除该键
-    setDraft((prev) => ({ ...prev, [opt.key]: null }));
-  };
-
   const save = useCallback(
     async (deployAfter: boolean) => {
       if (!snapshot) return;
@@ -104,7 +98,7 @@ export function SchemeConfigSection({ schemes }: { schemes: SchemeInfo[] | null 
       setError(null);
       setNotice(null);
       try {
-        const result = await settingsApi.updateSchemeConfig({
+        const result = await schemeApi.updateConfig({
           schemaId: snapshot.schemaId,
           ...(optionUpdates.length > 0 ? { options: optionUpdates } : {}),
           ...(changedMounts.length > 0 ? { mounts: changedMounts } : {}),
@@ -125,7 +119,7 @@ export function SchemeConfigSection({ schemes }: { schemes: SchemeInfo[] | null 
                 }`,
           );
         } else {
-          setNotice("已保存。配置要重新部署后才会生效（可在「部署」页一键部署）。");
+          setNotice("已保存。配置要重新部署后才会生效（可用右上角「保存并部署」）。");
         }
       } catch (e) {
         setError(toAppError(e));
@@ -136,10 +130,6 @@ export function SchemeConfigSection({ schemes }: { schemes: SchemeInfo[] | null 
     [changedMounts, optionUpdates, snapshot],
   );
 
-  const activeScheme = schemes?.find((s) => s.schemaId === snapshot?.schemaId) ?? null;
-  const supported = activeScheme ? activeScheme.translatorKind === "table" : true;
-
-  // 按分组渲染
   const groups = useMemo(() => {
     if (!snapshot) return [] as { name: string; items: OptionState[] }[];
     const map = new Map<string, OptionState[]>();
@@ -152,29 +142,48 @@ export function SchemeConfigSection({ schemes }: { schemes: SchemeInfo[] | null 
   }, [snapshot]);
 
   const overriddenCount = snapshot?.options.filter((o) => o.overridden).length ?? 0;
+  const activeScheme = schemes?.find((s) => s.schemaId === snapshot?.schemaId) ?? null;
+  const supported = activeScheme ? activeScheme.translatorKind === "table" : true;
 
   return (
-    <Section
-      title="输入法配置"
-      description={
-        <>
-          调整当前方案的输入行为。字段与取值依据 Rime 官方文档；
-          所有改动写进 <code>&lt;方案&gt;.custom.yaml</code> 的 <code>patch:</code>，
-          方案文件升级不会被冲掉。改完需要重新部署。
-        </>
-      }
-      aside={
-        snapshot ? (
-          <Badge tone={overriddenCount > 0 ? "accent" : "muted"}>
-            {overriddenCount > 0 ? `已覆盖 ${overriddenCount} 项` : "全部使用方案默认值"}
-          </Badge>
-        ) : null
-      }
-    >
-      <label className="stg-field stg-field--inline">
-        <span className="stg-field__label">方案</span>
+    <div className="scheme">
+      <header className="sc-header">
+        <div className="sc-header__text">
+          <h1 className="sc-title">输入法配置</h1>
+          <p className="sc-sub">
+            调整当前方案怎么工作：上屏、候选、学习与词表挂载。字段与取值依据 Rime 官方文档，
+            改动写进 <code>&lt;方案&gt;.custom.yaml</code> 的 <code>patch:</code>，方案升级不会被冲掉。
+          </p>
+        </div>
+        <div className="sc-header__aside">
+          {snapshot ? (
+            <Badge tone={overriddenCount > 0 ? "accent" : "muted"}>
+              {overriddenCount > 0 ? `已覆盖 ${overriddenCount} 项` : "全部使用方案默认值"}
+            </Badge>
+          ) : null}
+          <button
+            type="button"
+            className="ui-btn"
+            disabled={!dirty || saving}
+            onClick={() => void save(false)}
+          >
+            {saving ? "保存中…" : "保存配置"}
+          </button>
+          <button
+            type="button"
+            className="ui-btn ui-btn--primary"
+            disabled={!dirty || saving}
+            onClick={() => void save(true)}
+          >
+            保存并部署
+          </button>
+        </div>
+      </header>
+
+      <div className="sc-scope">
+        <span className="sc-scope__label">方案</span>
         <select
-          className="stg-input"
+          className="sc-select"
           value={schemaId ?? snapshot?.schemaId ?? ""}
           disabled={loading || saving}
           onChange={(e) => {
@@ -188,64 +197,64 @@ export function SchemeConfigSection({ schemes }: { schemes: SchemeInfo[] | null 
             </option>
           ))}
         </select>
-      </label>
+        {dirty ? <span className="sc-dirty">有未保存的改动</span> : null}
+      </div>
 
       {error ? (
-        <Banner tone="danger" title="读取或保存失败">
+        <div className="sc-banner sc-banner--danger">
+          <strong>读取或保存失败</strong>
           <p>{error.message}</p>
-          {error.hint ? <p className="stg-footnote">{error.hint}</p> : null}
-        </Banner>
+          {error.hint ? <p className="sc-hint">{error.hint}</p> : null}
+        </div>
       ) : null}
 
       {!supported ? (
-        <Banner tone="warn" title="该方案尚未实测">
+        <div className="sc-banner sc-banner--warn">
+          <strong>该方案尚未实测</strong>
           <p>
-            这里只对码表类方案（如小鹤音形）做过验证。其他方案的配置项名称可能不同，
+            这里只对码表类方案（如小鹤音形）做过验证。其他方案的字段名可能不同，
             保存前请确认文件内容；写前仍会自动备份，可随时还原。
           </p>
-        </Banner>
+        </div>
       ) : null}
 
-      {loading && !snapshot ? <p className="stg-footnote">正在读取方案配置…</p> : null}
+      {loading && !snapshot ? <p className="sc-hint">正在读取方案配置…</p> : null}
 
       {snapshot ? (
         <>
           {groups.map((group) => (
-            <div key={group.name} className="stg-optgroup">
-              <h3 className="stg-optgroup__title">{group.name}</h3>
-              <div className="stg-options">
+            <section key={group.name} className="sc-group">
+              <h2 className="sc-group__title">{group.name}</h2>
+              <div className="sc-options">
                 {group.items.map((opt) => (
                   <OptionRow
                     key={opt.key}
                     opt={opt}
                     value={valueOf(opt)}
                     pending={opt.key in draft}
-                    onChange={(v) => setValue(opt.key, v)}
-                    onReset={() => resetOption(opt)}
+                    onChange={(v) => setDraft((prev) => ({ ...prev, [opt.key]: v }))}
+                    onReset={() => setDraft((prev) => ({ ...prev, [opt.key]: null }))}
                   />
                 ))}
               </div>
-            </div>
+            </section>
           ))}
 
-          <div className="stg-mounts">
-            <div className="stg-mounts__head">
-              <h3>挂载的词表</h3>
-              <p className="stg-footnote">
-                来自主词典的 <code>import_tables</code>。取消勾选会把这行注释掉，词库本身不删除。
-              </p>
-            </div>
-
+          <section className="sc-group">
+            <h2 className="sc-group__title">挂载的词表</h2>
+            <p className="sc-hint">
+              来自主词典的 <code>import_tables</code>。取消勾选会把这行注释掉，词库文件本身不删除。
+            </p>
             {snapshot.mounts.length === 0 ? (
-              <p className="stg-footnote">
+              <p className="sc-hint">
                 该方案的主词典没有声明 <code>import_tables</code>，没有可调节的挂载项。
               </p>
             ) : (
-              <ul className="stg-mounts__list">
+              <ul className="sc-mounts">
                 {snapshot.mounts.map((m) => {
                   const checked = mounts[m.name] ?? m.enabled;
                   return (
-                    <li key={m.name} className="stg-mounts__item">
+                    <li key={m.name} className="sc-mounts__item">
                       <label>
                         <input
                           type="checkbox"
@@ -254,63 +263,46 @@ export function SchemeConfigSection({ schemes }: { schemes: SchemeInfo[] | null 
                             setMounts((prev) => ({ ...prev, [m.name]: e.target.checked }))
                           }
                         />
-                        <span className="stg-mounts__name">{m.name}</span>
+                        <span className="sc-mounts__name">{m.name}</span>
                       </label>
                       {m.isUserTable ? <Badge tone="accent">用户码表</Badge> : null}
                       {m.entryCount != null ? (
-                        <span className="stg-mounts__count">{m.entryCount.toLocaleString()} 条</span>
+                        <span className="sc-mounts__count">{m.entryCount.toLocaleString()} 条</span>
                       ) : null}
                       {m.path == null ? <Badge tone="warn">文件缺失</Badge> : null}
-                      {m.comment ? <span className="stg-mounts__note">{m.comment}</span> : null}
+                      {m.comment ? <span className="sc-mounts__note">{m.comment}</span> : null}
                     </li>
                   );
                 })}
               </ul>
             )}
-          </div>
-
-          <div className="stg-actions">
-            <button
-              type="button"
-              className="ui-btn ui-btn--primary"
-              disabled={!dirty || saving}
-              onClick={() => void save(false)}
-            >
-              {saving ? "保存中…" : "保存配置"}
-            </button>
-            <button
-              type="button"
-              className="ui-btn"
-              disabled={!dirty || saving}
-              onClick={() => void save(true)}
-            >
-              保存并部署
-            </button>
-            {dirty ? <span className="stg-footnote">有未保存的改动</span> : null}
-          </div>
+          </section>
 
           {notice ? (
-            <Banner tone="info" title="已保存">
+            <div className="sc-banner sc-banner--info">
+              <strong>已保存</strong>
               <p>{notice}</p>
-            </Banner>
+            </div>
           ) : null}
 
-          <details className="stg-details">
-            <summary>写入位置</summary>
-            <ul className="stg-footnote">
-              <li>
-                行为配置：<code>{snapshot.customPath}</code>
-                {snapshot.customExists ? "" : "（保存时创建）"}
-              </li>
-              <li>
-                词表挂载：<code>{snapshot.dictPath ?? "（未找到主词典）"}</code>
-              </li>
-              <li>方案文件（只读）：<code>{snapshot.schemaPath}</code></li>
-            </ul>
-          </details>
+          <footer className="sc-footer">
+            <details className="sc-details">
+              <summary>写入位置</summary>
+              <ul>
+                <li>
+                  行为配置：<code>{snapshot.customPath}</code>
+                  {snapshot.customExists ? "" : "（保存时创建）"}
+                </li>
+                <li>
+                  词表挂载：<code>{snapshot.dictPath ?? "（未找到主词典）"}</code>
+                </li>
+                <li>方案文件（只读）：<code>{snapshot.schemaPath}</code></li>
+              </ul>
+            </details>
+          </footer>
         </>
       ) : null}
-    </Section>
+    </div>
   );
 }
 
@@ -332,20 +324,20 @@ function OptionRow({
   const canReset = opt.overridden && !willReset;
 
   return (
-    <div className={`stg-option ${pending ? "stg-option--pending" : ""}`}>
-      <div className="stg-option__text">
-        <div className="stg-option__label">
+    <div className={`sc-option ${pending ? "sc-option--pending" : ""}`}>
+      <div className="sc-option__text">
+        <div className="sc-option__label">
           {opt.label}
           {opt.overridden && !willReset ? <Badge tone="accent">已覆盖</Badge> : null}
           {willReset ? <Badge tone="warn">将恢复默认</Badge> : null}
         </div>
-        <p className="stg-option__desc">{opt.description}</p>
-        <code className="stg-option__key">{opt.key}</code>
+        <p className="sc-option__desc">{opt.description}</p>
+        <code className="sc-option__key">{opt.key}</code>
       </div>
 
-      <div className="stg-option__control">
+      <div className="sc-option__control">
         {opt.kind === "bool" ? (
-          <label className="stg-option__switch">
+          <label className="sc-switch">
             <input
               type="checkbox"
               checked={value === true}
@@ -357,7 +349,7 @@ function OptionRow({
 
         {opt.kind === "int" || opt.kind === "float" ? (
           <input
-            className="stg-input stg-input--narrow"
+            className="sc-input sc-input--narrow"
             type="number"
             min={opt.min ?? undefined}
             max={opt.max ?? undefined}
@@ -377,7 +369,7 @@ function OptionRow({
 
         {opt.kind === "enum" ? (
           <select
-            className="stg-input"
+            className="sc-select"
             value={typeof value === "string" ? value : ""}
             onChange={(e) => onChange(e.target.value)}
           >
@@ -391,7 +383,7 @@ function OptionRow({
 
         {opt.kind === "text" ? (
           <input
-            className="stg-input"
+            className="sc-input"
             type="text"
             value={typeof value === "string" ? value : ""}
             placeholder={opt.default != null ? String(opt.default) : "（未设置）"}

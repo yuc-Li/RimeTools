@@ -20,7 +20,6 @@ import { toAppError } from "../../ipc/client";
 import type { AppError, AppSettings, BackupSettings, SchemeInfo, Theme } from "../../ipc/types";
 import { Badge, ErrorAlert, Spinner } from "../../components/Feedback";
 import { isMockMode, settingsApi, type EnvDetectResult } from "./api";
-import { SchemeConfigSection } from "./SchemeConfigSection";
 import {
   AppearanceSection,
   BackupSection,
@@ -437,8 +436,6 @@ export default function Settings() {
       {settings && draft ? (
         <>
           {/* 4. 保存与部署 */}
-          <SchemeConfigSection schemes={schemes} />
-
           <SaveDeploySection autoDeploy={draft.autoDeployAfterSave} onToggle={setAutoDeploy} env={env} />
 
           {/* 5. 备份策略 */}
