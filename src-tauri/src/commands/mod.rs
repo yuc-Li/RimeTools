@@ -8,6 +8,7 @@ pub mod deploy;
 pub mod dict;
 pub mod env;
 pub mod lookup;
+pub mod scheme_config;
 pub mod settings;
 pub mod suggest;
 pub mod transfer;

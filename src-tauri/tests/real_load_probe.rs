@@ -148,3 +148,99 @@ fn real_lookup_and_symbols() {
         hit.iter().map(|h| h.key.clone()).collect::<Vec<_>>()
     );
 }
+
+/// M2 只读探针：方案配置的补丁逻辑能否正确处理真实文件格式。
+///
+/// 全程只读：用真实文件内容跑一遍纯函数，不写入任何文件。
+#[test]
+#[ignore = "需要本机真实 Rime 环境；只读"]
+fn real_scheme_config_patch_handles_actual_files() {
+    use rime_platform::scheme_config;
+
+    let frontends = rime_platform::detect_frontends();
+    assert!(!frontends.is_empty(), "应检测到前端");
+    let user_dir = &frontends[0].user_dir;
+
+    // ── 1) custom.yaml：真实模板里 patch 是被注释掉的 ──
+    let custom_path = user_dir.join("xhup.custom.yaml");
+    if let Ok(original) = std::fs::read_to_string(&custom_path) {
+        println!("原始 custom 行数: {}", original.lines().count());
+        let patched = scheme_config::patch_custom_yaml(Some(&original), Some(false), Some(4));
+
+        assert!(
+            patched.lines().any(|l| l.trim() == "patch:"),
+            "应生成生效的 patch: 行"
+        );
+        assert!(
+            patched.contains("speller/auto_select: false"),
+            "应写入 auto_select"
+        );
+        assert!(
+            patched.contains("speller/max_code_length: 4"),
+            "应写入 max_code_length"
+        );
+        // 模板里的说明与注释必须保留
+        assert!(
+            patched.contains("# style/candidate_list_layout"),
+            "注释应保留"
+        );
+        // 生效键只能出现一次（模板里被注释的示例行不算）
+        let active_auto = patched
+            .lines()
+            .filter(|l| !l.trim_start().starts_with('#') && l.contains("speller/auto_select:"))
+            .count();
+        assert_eq!(active_auto, 1, "生效的 auto_select 只能有一行");
+        // 被注释的示例行要原样保留
+        assert!(
+            patched
+                .lines()
+                .any(|l| l.trim_start().starts_with('#') && l.contains("speller/auto_select")),
+            "模板注释行应保留"
+        );
+
+        // 幂等：同样输入再打一次补丁，结果不变
+        let again = scheme_config::patch_custom_yaml(Some(&patched), Some(false), Some(4));
+        assert_eq!(patched, again, "重复打补丁应幂等");
+
+        println!("--- 补丁后前 12 行 ---");
+        for line in patched.lines().take(12) {
+            println!("{line}");
+        }
+    }
+
+    // ── 2) 主词典：挂载项解析 + 开关往返 ──
+    let dict_path = user_dir.join("xhup_dicts").join("xhup.primary.dict.yaml");
+    let index_path = user_dir.join("xhup.dict.yaml");
+    for path in [&index_path, &dict_path] {
+        let Ok(text) = std::fs::read_to_string(path) else {
+            continue;
+        };
+        let mounts = scheme_config::parse_mounts(&text);
+        println!(
+            "{}：解析出 {} 个挂载项",
+            path.file_name().unwrap().to_string_lossy(),
+            mounts.len()
+        );
+        for (name, enabled, _) in mounts.iter().take(6) {
+            println!("  [{}] {name}", if *enabled { "开" } else { "关" });
+        }
+        if mounts.is_empty() {
+            continue;
+        }
+
+        // 关掉再打开，应与原文逐字相同
+        let first = &mounts[0].0;
+        let off = scheme_config::toggle_mounts(&text, &[(first.clone(), false)]);
+        if let Some(off_text) = off {
+            assert_ne!(off_text, text, "关闭后内容应变化");
+            assert!(
+                off_text.contains(&format!("# - \"{first}\"")),
+                "应通过行首注释实现停用"
+            );
+            let back = scheme_config::toggle_mounts(&off_text, &[(first.clone(), true)])
+                .expect("重新启用应产生改动");
+            assert_eq!(back, text, "关→开 应逐字还原原文");
+            println!("  {first}：关→开 往返一致 ✓");
+        }
+    }
+}

@@ -461,3 +461,55 @@ export interface SymbolHit {
   mode: string;
   rank: number;
 }
+
+// ───────────────────────── 方案配置（M2 设置增强） ─────────────────────────
+
+/** 方案 speller 段的可编辑项 */
+export interface SpellerConfig {
+  autoSelect: boolean | null;
+  maxCodeLength: number | null;
+  autoSelectPattern: string | null;
+  autoClear: string | null;
+  alphabet: string | null;
+}
+
+/** `import_tables` 里的一张词表 */
+export interface MountEntry {
+  name: string;
+  enabled: boolean;
+  comment: string | null;
+  /** 解析到的实际文件；不存在为 null */
+  path: string | null;
+  entryCount: number | null;
+  /** 用户码表：建议保持挂载 */
+  isUserTable: boolean;
+}
+
+export interface SchemeConfigSnapshot {
+  schemaId: string;
+  schemaName: string;
+  /** 方案文件路径（只读） */
+  schemaPath: string;
+  /** 覆盖文件路径（可能尚不存在） */
+  customPath: string;
+  customExists: boolean;
+  speller: SpellerConfig;
+  /** 生效值来源：schema | custom */
+  spellerSource: string;
+  /** 主词典路径（import_tables 所在文件） */
+  dictPath: string | null;
+  mounts: MountEntry[];
+  deployHint: string;
+}
+
+export interface MountToggle {
+  name: string;
+  enabled: boolean;
+}
+
+export interface SchemeConfigUpdateResult {
+  snapshot: SchemeConfigSnapshot;
+  /** 实际写入的文件 */
+  written: string[];
+  deploy: DeployResult | null;
+}

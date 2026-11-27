@@ -192,6 +192,9 @@ pub fn run() {
             commands::deploy::deploy_history,
             commands::deploy::deploy_wait,
             commands::deploy::deploy_open_log,
+            // 方案配置（M2 设置增强）
+            commands::scheme_config::scheme_config_get,
+            commands::scheme_config::scheme_config_update,
             // 设置（PRD FR-8）
             commands::settings::settings_get,
             commands::settings::settings_update,

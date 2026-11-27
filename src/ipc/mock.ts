@@ -1292,6 +1292,76 @@ function planImportMock(
   return { plan, add, update };
 }
 
+
+/** 方案配置（mock）：可编辑，用于浏览器预览「输入法配置」章节 */
+const mockSchemeConfig: Record<string, { autoSelect: boolean; maxCodeLength: number; mounts: Record<string, boolean> }> = {
+  xhup: {
+    autoSelect: true,
+    maxCodeLength: 4,
+    mounts: {
+      "xhup_dicts/xhup.user.top": true,
+      "xhup_dicts/xhup.user": true,
+      "xhup_dicts/xhup.primary": true,
+      "xhup_dicts/xhup.secondary": true,
+      "xhup_dicts/xhup.off-table": true,
+      "xhup_dicts/xhup.full.code.words": true,
+      "xhup_dicts/xhup.full.code.chars": false,
+      "xhup_dicts/xhup.rare.chars": false,
+      "xhup_dicts/xhup.ok": true,
+    },
+  },
+  double_pinyin_flypy: {
+    autoSelect: false,
+    maxCodeLength: 4,
+    mounts: {},
+  },
+};
+
+const MOCK_MOUNT_META: Record<string, { comment: string; entries: number | null; user: boolean }> = {
+  "xhup_dicts/xhup.user.top": { comment: "用户置顶码表", entries: 33, user: true },
+  "xhup_dicts/xhup.user": { comment: "用户自用词库", entries: 12, user: true },
+  "xhup_dicts/xhup.primary": { comment: "首选字词", entries: 68572, user: false },
+  "xhup_dicts/xhup.secondary": { comment: "次选字词", entries: 1666, user: false },
+  "xhup_dicts/xhup.off-table": { comment: "表外字", entries: 362, user: false },
+  "xhup_dicts/xhup.full.code.words": { comment: "全码词", entries: 500, user: false },
+  "xhup_dicts/xhup.full.code.chars": { comment: "全码字", entries: 1650, user: false },
+  "xhup_dicts/xhup.rare.chars": { comment: "生僻字", entries: 500, user: false },
+  "xhup_dicts/xhup.ok": { comment: "拆字拼字库", entries: 88020, user: false },
+};
+
+function buildMockSchemeConfig(schemaId: string) {
+  const cfg = mockSchemeConfig[schemaId] ?? { autoSelect: false, maxCodeLength: 4, mounts: {} };
+  const meta = schemes_meta.find((m) => m.schemaId === schemaId);
+  return {
+    schemaId,
+    schemaName: meta?.name ?? schemaId,
+    schemaPath: `${RIME_DIR}/${schemaId}.schema.yaml`,
+    customPath: `${RIME_DIR}/${schemaId}.custom.yaml`,
+    customExists: false,
+    speller: {
+      autoSelect: cfg.autoSelect,
+      maxCodeLength: cfg.maxCodeLength,
+      autoSelectPattern: "^;.$|^\\w{4}$",
+      autoClear: "max_length",
+      alphabet: "abcdefghijklmnopqrstuvwxyz;'",
+    },
+    spellerSource: "schema",
+    dictPath: `${RIME_DIR}/${schemaId}.dict.yaml`,
+    mounts: Object.entries(cfg.mounts).map(([name, enabled]) => {
+      const m = MOCK_MOUNT_META[name];
+      return {
+        name,
+        enabled,
+        comment: m?.comment ?? null,
+        path: `${RIME_DIR}/${name}.dict.yaml`,
+        entryCount: m?.entries ?? null,
+        isUserTable: Boolean(m?.user),
+      };
+    }),
+    deployHint: "改完配置后需要重新部署才会生效",
+  };
+}
+
 /** 反查页用的方案元数据（与 schemes 列表保持一致的命名） */
 const schemes_meta = [
   { schemaId: "double_pinyin_flypy", name: "小鹤双拼", isActive: true, isDoublePinyin: true },
@@ -1781,6 +1851,42 @@ export async function mockInvoke<T>(
         .sort((a, b) => a.rank - b.rank || a.key.localeCompare(b.key))
         .slice(0, limit);
       return hits as T;
+    }
+
+    // ── M2：方案配置 ──
+    case "scheme_config_get": {
+      const id = (args.schemaId as string | null | undefined) ?? "xhup";
+      return buildMockSchemeConfig(id) as T;
+    }
+
+    case "scheme_config_update": {
+      const req = args.request as {
+        schemaId: string;
+        autoSelect?: boolean;
+        maxCodeLength?: number;
+        mounts?: { name: string; enabled: boolean }[];
+      };
+      const cfg = mockSchemeConfig[req.schemaId] ?? {
+        autoSelect: false,
+        maxCodeLength: 4,
+        mounts: {},
+      };
+      const written: string[] = [];
+      if (req.autoSelect !== undefined || req.maxCodeLength !== undefined) {
+        if (req.autoSelect !== undefined) cfg.autoSelect = req.autoSelect;
+        if (req.maxCodeLength !== undefined) cfg.maxCodeLength = req.maxCodeLength;
+        written.push(`${RIME_DIR}/${req.schemaId}.custom.yaml`);
+      }
+      if (req.mounts && req.mounts.length > 0) {
+        for (const t of req.mounts) cfg.mounts[t.name] = t.enabled;
+        written.push(`${RIME_DIR}/${req.schemaId}.dict.yaml`);
+      }
+      mockSchemeConfig[req.schemaId] = cfg;
+      return {
+        snapshot: buildMockSchemeConfig(req.schemaId),
+        written,
+        deploy: null,
+      } as T;
     }
 
     default:

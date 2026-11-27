@@ -711,3 +711,108 @@
     color: #10251b;
   }
 }
+
+/* ── 输入法配置章节（M2 设置增强） ── */
+.stg-field--inline {
+  display: flex;
+  flex-direction: row; /* 覆盖 .stg-field 的纵向布局 */
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.stg-field--inline .stg-field__hint {
+  flex-basis: 100%;
+}
+
+.stg-field--inline .stg-field__label {
+  flex: 0 0 auto;
+  min-width: 64px;
+}
+
+.stg-input--narrow {
+  width: 88px;
+}
+
+.stg-mounts {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.stg-mounts__head h3 {
+  margin: 0 0 2px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.stg-mounts__list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border, #dcdce0);
+  border-radius: 10px;
+  list-style: none;
+  max-height: 340px;
+  overflow-y: auto;
+}
+
+.stg-mounts__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 4px 2px;
+  font-size: 12.5px;
+}
+
+.stg-mounts__item label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
+}
+
+.stg-mounts__name {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+}
+
+.stg-mounts__count {
+  color: var(--muted, #6b6b70);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.stg-mounts__note {
+  color: var(--muted, #6b6b70);
+  font-size: 11.5px;
+}
+
+.stg-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.stg-details {
+  margin-top: 10px;
+  font-size: 12px;
+}
+
+.stg-details summary {
+  cursor: pointer;
+  color: var(--muted, #6b6b70);
+}
+
+.stg-details ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  line-height: 1.8;
+  word-break: break-all;
+}

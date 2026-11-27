@@ -410,6 +410,28 @@ enum Theme { System, Light, Dark }
 
 ---
 
+### 3.10 方案配置 `scheme_config_*`（M2 设置增强）
+
+| 命令 | 入参 | 出参 |
+| --- | --- | --- |
+| `scheme_config_get` | `{ schemaId? }` | `SchemeConfigSnapshot` |
+| `scheme_config_update` | `SchemeConfigUpdate` | `{ snapshot, written[], deploy? }` |
+
+`SchemeConfigUpdate = { schemaId, autoSelect?, maxCodeLength?, mounts?, deployAfter? }`。
+
+约定：
+
+- **快速上屏 / 最大码长**写 `<schema>.custom.yaml` 的 `patch:`（Rime 官方覆盖机制），
+  不直接改方案文件；上游模板里被注释的 `patch:` 会被激活，其余注释与设置项原样保留；
+- **词表挂载**只能改主词典的 `import_tables`（Rime 没有词典补丁机制），
+  实现上**只切换行首 `# ` 前缀**，行内对齐、引号、行尾注释逐字保留；
+  停用不等于删除文件，随时可以重新勾选；
+- 两条路径都走「写前备份 + 指纹校验 + 原子写」，文件期间被外部改动会拒绝覆盖；
+- 返回的 `written` 列出实际写入的文件，界面据此提示「需要重新部署」；
+- `mounts` 里 `isUserTable` 标识个人码表（界面给出「建议保持挂载」提示）。
+
+---
+
 ## 4. 事件
 
 | 事件 | payload | 触发时机 |
@@ -513,3 +535,4 @@ deploy_start(Manual)  ──┘    当前轮结束后补跑一次（不排队 N 
 | v1 | 2026-11-26 | 冻结首版：环境/词库/建议/配置/部署/备份/设置 七域；划词采集与跨方案导入不在内（已暂缓） |
 | v1.1 | 2026-11-26 | 兼容性增量：`DeployResult.finished_at`（部署历史需要显示完成时刻，否则只能从日志文件名反推）；`deploy_open_log` 后端已实现 |
 | v1.2 | 2026-11-27 | M2 新增两域：§3.8 导入导出（`dict_export` / `dict_import_preview` / `dict_import_apply` / 两个文件对话框）、§3.9 只读反查（`lookup_sources` / `lookup_query` / `lookup_rebuild` / `symbol_query`）。均为新增，不改动 v1 已有命令 |
+| v1.3 | 2026-11-27 | M2 设置增强：§3.10 方案配置（`scheme_config_get` / `scheme_config_update`），覆盖快速上屏、最大码长与词表挂载 |

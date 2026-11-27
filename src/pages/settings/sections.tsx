@@ -57,7 +57,7 @@ export function Section({
   );
 }
 
-function Banner({
+export function Banner({
   tone,
   title,
   children,
@@ -74,7 +74,7 @@ function Banner({
   );
 }
 
-function Switch({
+export function Switch({
   checked,
   onChange,
   disabled,

@@ -12,6 +12,7 @@ use std::path::{Path, PathBuf};
 
 mod schema;
 
+pub mod scheme_config;
 pub mod sources;
 pub mod symbols;
 

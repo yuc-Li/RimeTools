@@ -14,7 +14,15 @@
 
 import { call, isTauri, toAppError } from "../../ipc/client";
 import { mockInvoke } from "../../ipc/mock";
-import type { AppError, AppSettings, FrontendInfo, SchemeInfo } from "../../ipc/types";
+import type {
+  AppError,
+  AppSettings,
+  FrontendInfo,
+  MountToggle,
+  SchemeConfigSnapshot,
+  SchemeConfigUpdateResult,
+  SchemeInfo,
+} from "../../ipc/types";
 
 /**
  * `env_detect` 的返回结构。
@@ -68,6 +76,26 @@ export const settingsApi = {
    */
   resetSettings: (): Promise<AppSettings> =>
     backend<AppSettings>("settings_reset", { keepDictData: true }),
+
+  // ── 方案配置（M2）：快速上屏 / 最大码长 / 词表挂载 ──
+
+  /** 读取指定方案的配置快照（`schemaId` 为空时用当前激活方案） */
+  getSchemeConfig: (schemaId: string | null = null): Promise<SchemeConfigSnapshot> =>
+    backend<SchemeConfigSnapshot>("scheme_config_get", { schemaId }),
+
+  /**
+   * 更新方案配置。
+   * `autoSelect` / `maxCodeLength` 写 `<schema>.custom.yaml`；
+   * `mounts` 改主词典的 `import_tables`（只切换行首注释）。
+   */
+  updateSchemeConfig: (request: {
+    schemaId: string;
+    autoSelect?: boolean;
+    maxCodeLength?: number;
+    mounts?: MountToggle[];
+    deployAfter?: boolean;
+  }): Promise<SchemeConfigUpdateResult> =>
+    backend<SchemeConfigUpdateResult>("scheme_config_update", { request }),
 };
 
 async function setUserDirImpl(path: string): Promise<UserDirResult> {
