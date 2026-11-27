@@ -1293,7 +1293,79 @@ function planImportMock(
 }
 
 
+
+// ── 方案配置项目录（与后端 rime-platform::scheme_config::OPTION_SPECS 对齐）──
+const MOCK_OPTION_SPECS: {
+  key: string;
+  kind: "bool" | "int" | "float" | "text" | "enum";
+  group: string;
+  label: string;
+  description: string;
+  min?: number;
+  max?: number;
+  choices?: { value: string; label: string }[];
+}[] = [
+  { key: "speller/max_code_length", kind: "int", group: "输入与上屏", label: "最大码长", description: "超过这个长度不再接收编码。", min: 1, max: 32 },
+  { key: "speller/auto_select", kind: "bool", group: "输入与上屏", label: "快速上屏", description: "编码唯一时直接上屏，不再等选词。" },
+  { key: "speller/auto_select_pattern", kind: "text", group: "输入与上屏", label: "自动上屏规则", description: "正则；输入串匹配时自动顶字上屏。" },
+  {
+    key: "speller/auto_clear", kind: "enum", group: "输入与上屏", label: "空码清理",
+    description: "空码时的行为。",
+    choices: [
+      { value: "manual", label: "手动确认" },
+      { value: "auto", label: "自动清理" },
+      { value: "max_length", label: "达到最长码时清理" },
+    ],
+  },
+  { key: "speller/use_space", kind: "bool", group: "输入与上屏", label: "空格作为编码", description: "允许空格键进入编码串。" },
+  { key: "speller/delimiter", kind: "text", group: "输入与上屏", label: "分音符", description: "音節之间的分隔符。" },
+  { key: "menu/page_size", kind: "int", group: "候选与选字", label: "每页候选数", description: "候选窗一页显示多少个候选。", min: 1, max: 20 },
+  { key: "menu/alternative_select_keys", kind: "text", group: "候选与选字", label: "备用选字键", description: "数字键被占用时用这些键选字。" },
+  { key: "translator/enable_sentence", kind: "bool", group: "词典与学习", label: "智能造句", description: "把多个编码段连成一句。" },
+  { key: "translator/enable_completion", kind: "bool", group: "词典与学习", label: "编码提示", description: "提前显示尚未输入完整码的字。" },
+  { key: "translator/enable_user_dict", kind: "bool", group: "词典与学习", label: "用户词典学习", description: "记录动态字词频与用户词。" },
+  { key: "translator/enable_encoder", kind: "bool", group: "词典与学习", label: "自动造词", description: "按编码规则自动成词。" },
+  { key: "translator/encode_commit_history", kind: "bool", group: "词典与学习", label: "上屏词入词库", description: "把刚上屏的词记入词库。" },
+  { key: "translator/max_phrase_length", kind: "int", group: "词典与学习", label: "自动成词最大词长", description: "限制自动成词长度。", min: 1, max: 20 },
+  { key: "translator/initial_quality", kind: "float", group: "词典与学习", label: "出字优先级", description: "多翻译器结果合并时的排序权重。", min: 0, max: 10 },
+  { key: "translator/spelling_hints", kind: "int", group: "词典与学习", label: "拼音提示字数", description: "多少个字以内标注完整带调拼音。", min: 0, max: 10 },
+  { key: "translator/always_show_comments", kind: "bool", group: "词典与学习", label: "始终显示提示码", description: "候选旁始终显示提示信息。" },
+  { key: "translator/enable_charset_filter", kind: "bool", group: "词典与学习", label: "字符集过滤", description: "按字符集开关过滤候选。" },
+  { key: "translator/strict_spelling", kind: "bool", group: "词典与学习", label: "严格拼写", description: "只按略拼码组词。" },
+  { key: "punctuator/import_preset", kind: "text", group: "标点与按键", label: "符号表预设", description: "使用哪份预设符号表。" },
+  { key: "key_binder/import_preset", kind: "text", group: "标点与按键", label: "按键绑定预设", description: "使用哪份预设按键绑定。" },
+  { key: "recognizer/import_preset", kind: "text", group: "标点与按键", label: "识别器预设", description: "使用哪份预设识别规则。" },
+];
+
+/** 方案文件里的默认值（mock） */
+const MOCK_OPTION_DEFAULTS: Record<string, unknown> = {
+  "speller/max_code_length": 4,
+  "speller/auto_select": true,
+  "speller/auto_select_pattern": "^;.$|^\\w{4}$",
+  "speller/auto_clear": "max_length",
+  "speller/use_space": false,
+  "speller/delimiter": " '",
+  "menu/page_size": 5,
+  "menu/alternative_select_keys": null,
+  "translator/enable_sentence": false,
+  "translator/enable_completion": false,
+  "translator/enable_user_dict": false,
+  "translator/enable_encoder": false,
+  "translator/encode_commit_history": false,
+  "translator/max_phrase_length": 5,
+  "translator/initial_quality": 0.75,
+  "translator/spelling_hints": 0,
+  "translator/always_show_comments": false,
+  "translator/enable_charset_filter": false,
+  "translator/strict_spelling": false,
+  "punctuator/import_preset": "symbols",
+  "key_binder/import_preset": "default",
+  "recognizer/import_preset": "default",
+};
+
 /** 方案配置（mock）：可编辑，用于浏览器预览「输入法配置」章节 */
+const mockOptionsOverride: Record<string, Record<string, unknown>> = {};
+
 const mockSchemeConfig: Record<string, { autoSelect: boolean; maxCodeLength: number; mounts: Record<string, boolean> }> = {
   xhup: {
     autoSelect: true,
@@ -1347,6 +1419,19 @@ function buildMockSchemeConfig(schemaId: string) {
     },
     spellerSource: "schema",
     dictPath: `${RIME_DIR}/${schemaId}.dict.yaml`,
+    options: MOCK_OPTION_SPECS.map((spec) => {
+      const override = mockOptionsOverride[schemaId] ?? {};
+      const overridden = spec.key in override;
+      return {
+        ...spec,
+        value: overridden ? override[spec.key] : (MOCK_OPTION_DEFAULTS[spec.key] ?? null),
+        default: MOCK_OPTION_DEFAULTS[spec.key] ?? null,
+        overridden,
+        min: spec.min ?? null,
+        max: spec.max ?? null,
+        choices: spec.choices ?? [],
+      };
+    }),
     mounts: Object.entries(cfg.mounts).map(([name, enabled]) => {
       const m = MOCK_MOUNT_META[name];
       return {
@@ -1865,6 +1950,7 @@ export async function mockInvoke<T>(
         autoSelect?: boolean;
         maxCodeLength?: number;
         mounts?: { name: string; enabled: boolean }[];
+        options?: { key: string; value: unknown }[];
       };
       const cfg = mockSchemeConfig[req.schemaId] ?? {
         autoSelect: false,
@@ -1875,6 +1961,18 @@ export async function mockInvoke<T>(
       if (req.autoSelect !== undefined || req.maxCodeLength !== undefined) {
         if (req.autoSelect !== undefined) cfg.autoSelect = req.autoSelect;
         if (req.maxCodeLength !== undefined) cfg.maxCodeLength = req.maxCodeLength;
+        written.push(`${RIME_DIR}/${req.schemaId}.custom.yaml`);
+      }
+      if (req.options && req.options.length > 0) {
+        const store = mockOptionsOverride[req.schemaId] ?? {};
+        for (const u of req.options) {
+          if (u.value === null || u.value === undefined) {
+            delete store[u.key];
+          } else {
+            store[u.key] = u.value;
+          }
+        }
+        mockOptionsOverride[req.schemaId] = store;
         written.push(`${RIME_DIR}/${req.schemaId}.custom.yaml`);
       }
       if (req.mounts && req.mounts.length > 0) {

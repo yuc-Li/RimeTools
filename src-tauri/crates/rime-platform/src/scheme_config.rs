@@ -54,6 +54,8 @@ pub struct SchemeConfigSnapshot {
     /// 主词典路径（`import_tables` 所在文件）
     pub dict_path: Option<String>,
     pub mounts: Vec<MountEntry>,
+    /// 可配置项（表驱动，见 `OPTION_SPECS`）
+    pub options: Vec<OptionState>,
     /// 提示：改完需要重新部署
     pub deploy_hint: String,
 }
@@ -66,6 +68,558 @@ pub enum ConfigSupport {
     Supported,
     /// 结构符合但没有实测，编辑前提示
     Experimental,
+}
+
+// ───────────────────────── 可配置项目录（表驱动） ─────────────────────────
+//
+// 字段名与取值依据 Rime 官方文档：
+// - `RimeWithSchemata`（github.com/rime/home/wiki）
+// - 《Schema.yaml 詳解》(LEOYoon-Tsaw/Rime_collections) 的「設定項速查」
+// - `rime-prelude/default.yaml` 的默认值
+//
+// 只收录「改了就生效、且不破坏方案结构」的标量项；列表型（engine.filters、
+// switches、key_binder.bindings）涉及增删顺序，不在本版本自动改写。
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum OptionKind {
+    Bool,
+    Int,
+    Float,
+    Text,
+    /// 取值受限的文本（如 `auto_clear`）
+    Enum,
+}
+
+/// 一个可配置项的值（只支持标量）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum OptionValue {
+    Bool(bool),
+    Number(f64),
+    Text(String),
+}
+
+impl OptionValue {
+    /// 渲染为 YAML 标量。
+    fn to_yaml(&self) -> String {
+        match self {
+            OptionValue::Bool(b) => b.to_string(),
+            OptionValue::Number(n) => {
+                if n.fract() == 0.0 {
+                    format!("{}", *n as i64)
+                } else {
+                    n.to_string()
+                }
+            }
+            // 单引号包裹最稳：正则、空格、冒号都不会被误解析
+            OptionValue::Text(t) => format!("'{}'", t.replace('\'', "''")),
+        }
+    }
+
+    pub fn as_bool(&self) -> Option<bool> {
+        match self {
+            OptionValue::Bool(b) => Some(*b),
+            _ => None,
+        }
+    }
+
+    pub fn as_number(&self) -> Option<f64> {
+        match self {
+            OptionValue::Number(n) => Some(*n),
+            _ => None,
+        }
+    }
+
+    pub fn as_text(&self) -> Option<&str> {
+        match self {
+            OptionValue::Text(t) => Some(t),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OptionChoice {
+    pub value: String,
+    pub label: String,
+}
+
+/// 配置项定义（静态目录）。
+#[derive(Debug, Clone)]
+pub struct OptionSpec {
+    /// 补丁键，如 `speller/max_code_length`
+    pub key: &'static str,
+    pub kind: OptionKind,
+    pub group: &'static str,
+    pub label: &'static str,
+    pub description: &'static str,
+    pub min: Option<f64>,
+    pub max: Option<f64>,
+    pub choices: &'static [(&'static str, &'static str)],
+}
+
+/// 一个配置项的当前状态（目录 + 取值）。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OptionState {
+    pub key: String,
+    pub group: String,
+    pub label: String,
+    pub description: String,
+    pub kind: OptionKind,
+    /// 当前生效值（方案文件，被 custom 覆盖时取 custom）
+    pub value: Option<OptionValue>,
+    /// 方案文件里的原始值（用于「恢复默认」）
+    pub default: Option<OptionValue>,
+    /// custom.yaml 里是否有显式覆盖
+    pub overridden: bool,
+    pub min: Option<f64>,
+    pub max: Option<f64>,
+    pub choices: Vec<OptionChoice>,
+}
+
+const GROUP_SPELLER: &str = "输入与上屏";
+const GROUP_MENU: &str = "候选与选字";
+const GROUP_TRANSLATOR: &str = "词典与学习";
+const GROUP_OTHER: &str = "标点与按键";
+
+/// 官方文档里较常用、改了不会破坏方案结构的配置项。
+pub const OPTION_SPECS: &[OptionSpec] = &[
+    // ── 输入与上屏 ──
+    OptionSpec {
+        key: "speller/max_code_length",
+        kind: OptionKind::Int,
+        group: GROUP_SPELLER,
+        label: "最大码长",
+        description: "超过这个长度不再接收编码；音形类通常是 4，拼音类通常不设。",
+        min: Some(1.0),
+        max: Some(32.0),
+        choices: &[],
+    },
+    OptionSpec {
+        key: "speller/auto_select",
+        kind: OptionKind::Bool,
+        group: GROUP_SPELLER,
+        label: "快速上屏",
+        description: "编码唯一时直接上屏，不再等选词。",
+        min: None,
+        max: None,
+        choices: &[],
+    },
+    OptionSpec {
+        key: "speller/auto_select_pattern",
+        kind: OptionKind::Text,
+        group: GROUP_SPELLER,
+        label: "自动上屏规则",
+        description: "正则表达式；输入串匹配时自动顶字上屏（配合 auto_select 使用）。",
+        min: None,
+        max: None,
+        choices: &[],
+    },
+    OptionSpec {
+        key: "speller/auto_clear",
+        kind: OptionKind::Enum,
+        group: GROUP_SPELLER,
+        label: "空码清理",
+        description: "空码时的行为：manual 按键确认、auto 自动清屏、max_length 达到最长码后清屏。",
+        min: None,
+        max: None,
+        choices: &[
+            ("manual", "手动确认"),
+            ("auto", "自动清理"),
+            ("max_length", "达到最长码时清理"),
+        ],
+    },
+    OptionSpec {
+        key: "speller/use_space",
+        kind: OptionKind::Bool,
+        group: GROUP_SPELLER,
+        label: "空格作为编码",
+        description: "允许空格键进入编码串（少数方案使用）。",
+        min: None,
+        max: None,
+        choices: &[],
+    },
+    OptionSpec {
+        key: "speller/delimiter",
+        kind: OptionKind::Text,
+        group: GROUP_SPELLER,
+        label: "分音符",
+        description: "音節之间的分隔符，例如 ` '`（空格与单引号）。",
+        min: None,
+        max: None,
+        choices: &[],
+    },
+    // ── 候选与选字 ──
+    OptionSpec {
+        key: "menu/page_size",
+        kind: OptionKind::Int,
+        group: GROUP_MENU,
+        label: "每页候选数",
+        description: "候选窗一页显示多少个候选（官方默认 5）。",
+        min: Some(1.0),
+        max: Some(20.0),
+        choices: &[],
+    },
+    OptionSpec {
+        key: "menu/alternative_select_keys",
+        kind: OptionKind::Text,
+        group: GROUP_MENU,
+        label: "备用选字键",
+        description: "当数字键被编码占用时，用这些键选字，例如 ASDFGHJKL。",
+        min: None,
+        max: None,
+        choices: &[],
+    },
+    // ── 词典与学习 ──
+    OptionSpec {
+        key: "translator/enable_sentence",
+        kind: OptionKind::Bool,
+        group: GROUP_TRANSLATOR,
+        label: "智能造句",
+        description: "允许把多个编码段连成一句（码表类方案通常关闭）。",
+        min: None,
+        max: None,
+        choices: &[],
+    },
+    OptionSpec {
+        key: "translator/enable_completion",
+        kind: OptionKind::Bool,
+        group: GROUP_TRANSLATOR,
+        label: "编码提示",
+        description: "提前显示尚未输入完整码的字（简码提示）。",
+        min: None,
+        max: None,
+        choices: &[],
+    },
+    OptionSpec {
+        key: "translator/enable_user_dict",
+        kind: OptionKind::Bool,
+        group: GROUP_TRANSLATOR,
+        label: "用户词典学习",
+        description: "记录动态字词频与你输入的词；关闭后不再学习。",
+        min: None,
+        max: None,
+        choices: &[],
+    },
+    OptionSpec {
+        key: "translator/enable_encoder",
+        kind: OptionKind::Bool,
+        group: GROUP_TRANSLATOR,
+        label: "自动造词",
+        description: "码表类方案：允许按编码规则自动成词（仅 table_translator）。",
+        min: None,
+        max: None,
+        choices: &[],
+    },
+    OptionSpec {
+        key: "translator/encode_commit_history",
+        kind: OptionKind::Bool,
+        group: GROUP_TRANSLATOR,
+        label: "上屏词入词库",
+        description: "把刚上屏的词按规则自动记入词库（仅 table_translator）。",
+        min: None,
+        max: None,
+        choices: &[],
+    },
+    OptionSpec {
+        key: "translator/max_phrase_length",
+        kind: OptionKind::Int,
+        group: GROUP_TRANSLATOR,
+        label: "自动成词最大词长",
+        description: "配合自动造词使用，限制自动成词的长度。",
+        min: Some(1.0),
+        max: Some(20.0),
+        choices: &[],
+    },
+    OptionSpec {
+        key: "translator/initial_quality",
+        kind: OptionKind::Float,
+        group: GROUP_TRANSLATOR,
+        label: "出字优先级",
+        description: "多个翻译器结果合并时的排序权重，数值越大越靠前。",
+        min: Some(0.0),
+        max: Some(10.0),
+        choices: &[],
+    },
+    OptionSpec {
+        key: "translator/spelling_hints",
+        kind: OptionKind::Int,
+        group: GROUP_TRANSLATOR,
+        label: "拼音提示字数",
+        description: "多少个字以内标注完整带调拼音（仅 script_translator）。",
+        min: Some(0.0),
+        max: Some(10.0),
+        choices: &[],
+    },
+    OptionSpec {
+        key: "translator/always_show_comments",
+        kind: OptionKind::Bool,
+        group: GROUP_TRANSLATOR,
+        label: "始终显示提示码",
+        description: "候选旁始终显示提示信息（仅 script_translator）。",
+        min: None,
+        max: None,
+        choices: &[],
+    },
+    OptionSpec {
+        key: "translator/enable_charset_filter",
+        kind: OptionKind::Bool,
+        group: GROUP_TRANSLATOR,
+        label: "字符集过滤",
+        description: "按字符集开关过滤候选（仅 table_translator，或配合 cjk_minifier）。",
+        min: None,
+        max: None,
+        choices: &[],
+    },
+    OptionSpec {
+        key: "translator/strict_spelling",
+        kind: OptionKind::Bool,
+        group: GROUP_TRANSLATOR,
+        label: "严格拼写",
+        description: "配合简拼规则时，只按略拼码组词（仅 table_translator）。",
+        min: None,
+        max: None,
+        choices: &[],
+    },
+    // ── 标点与按键 ──
+    OptionSpec {
+        key: "punctuator/import_preset",
+        kind: OptionKind::Text,
+        group: GROUP_OTHER,
+        label: "符号表预设",
+        description: "使用哪份预设符号表，如 default / symbols。",
+        min: None,
+        max: None,
+        choices: &[],
+    },
+    OptionSpec {
+        key: "key_binder/import_preset",
+        kind: OptionKind::Text,
+        group: GROUP_OTHER,
+        label: "按键绑定预设",
+        description: "使用哪份预设按键绑定，如 default。",
+        min: None,
+        max: None,
+        choices: &[],
+    },
+    OptionSpec {
+        key: "recognizer/import_preset",
+        kind: OptionKind::Text,
+        group: GROUP_OTHER,
+        label: "识别器预设",
+        description: "使用哪份预设识别规则（网址、邮箱、反查等）。",
+        min: None,
+        max: None,
+        choices: &[],
+    },
+];
+
+// ───────────────────────── 通用读取 ─────────────────────────
+
+/// 从 YAML 文本里读某个二级标量：`section/key`。
+pub fn read_scalar(text: &str, section: &str, key: &str) -> Option<String> {
+    let mut in_section = false;
+    let mut base_indent = 0usize;
+    for line in text.lines() {
+        let trimmed = line.trim_start();
+        if trimmed.starts_with('#') || trimmed.is_empty() {
+            continue;
+        }
+        let indent = line.len() - trimmed.len();
+        if !in_section {
+            if trimmed.starts_with(&format!("{section}:")) {
+                in_section = true;
+                base_indent = indent;
+            }
+            continue;
+        }
+        if indent <= base_indent {
+            break; // 段落结束
+        }
+        let Some((k, v)) = trimmed.split_once(':') else {
+            continue;
+        };
+        if k.trim().trim_matches('"').trim_matches('\'') != key {
+            continue;
+        }
+        let value = v.split(" #").next().unwrap_or("").trim();
+        let value = value.trim_matches('"').trim_matches('\'');
+        if value.is_empty() {
+            continue;
+        }
+        return Some(value.to_owned());
+    }
+    None
+}
+
+/// 读 custom 文件 `patch:` 里的原始文本值（不做类型转换）。
+pub fn read_patch_raw(custom_text: &str, key: &str) -> Option<String> {
+    let mut in_patch = false;
+    for line in custom_text.lines() {
+        let trimmed = line.trim_start();
+        if trimmed.starts_with('#') || trimmed.is_empty() {
+            continue;
+        }
+        if trimmed.starts_with("patch:") {
+            in_patch = true;
+            continue;
+        }
+        if !in_patch {
+            continue;
+        }
+        let Some((k, v)) = trimmed.split_once(':') else {
+            continue;
+        };
+        if k.trim().trim_matches('"').trim_matches('\'') != key {
+            continue;
+        }
+        let value = v.split(" #").next().unwrap_or("").trim();
+        let value = value.trim_matches('"').trim_matches('\'');
+        return Some(value.to_owned());
+    }
+    None
+}
+
+fn coerce(kind: OptionKind, raw: &str) -> Option<OptionValue> {
+    match kind {
+        OptionKind::Bool => Some(OptionValue::Bool(matches!(
+            raw.trim().to_ascii_lowercase().as_str(),
+            "true" | "yes" | "1"
+        ))),
+        OptionKind::Int | OptionKind::Float => {
+            raw.trim().parse::<f64>().ok().map(OptionValue::Number)
+        }
+        OptionKind::Text | OptionKind::Enum => Some(OptionValue::Text(raw.to_owned())),
+    }
+}
+
+/// 计算全部配置项的当前状态。
+pub fn read_options(schema_text: &str, custom_text: Option<&str>) -> Vec<OptionState> {
+    OPTION_SPECS
+        .iter()
+        .map(|spec| {
+            let (section, key) = spec
+                .key
+                .split_once('/')
+                .expect("配置键必须是 section/key 形式");
+
+            let default =
+                read_scalar(schema_text, section, key).and_then(|raw| coerce(spec.kind, &raw));
+
+            let custom_raw = custom_text.and_then(|t| read_patch_raw(t, spec.key));
+            let overridden = custom_raw.is_some();
+            let value = match &custom_raw {
+                Some(raw) => coerce(spec.kind, raw).or_else(|| default.clone()),
+                None => default.clone(),
+            };
+
+            OptionState {
+                key: spec.key.to_owned(),
+                group: spec.group.to_owned(),
+                label: spec.label.to_owned(),
+                description: spec.description.to_owned(),
+                kind: spec.kind,
+                value,
+                default,
+                overridden,
+                min: spec.min,
+                max: spec.max,
+                choices: spec
+                    .choices
+                    .iter()
+                    .map(|(v, l)| OptionChoice {
+                        value: (*v).to_owned(),
+                        label: (*l).to_owned(),
+                    })
+                    .collect(),
+            }
+        })
+        .collect()
+}
+
+// ───────────────────────── 通用写入 ─────────────────────────
+
+/// 把一批 `(key, Option<value>)` 写进 custom 文件的 `patch:`。
+///
+/// `None` 表示**删除**该键（恢复方案文件里的默认值）。
+pub fn patch_custom_values(
+    existing: Option<&str>,
+    updates: &[(String, Option<OptionValue>)],
+) -> String {
+    let mut lines: Vec<String> = existing
+        .unwrap_or("")
+        .lines()
+        .map(|l| l.to_owned())
+        .collect();
+
+    // 1) 确保有生效的 patch: 行
+    let mut patch_idx: Option<usize> = None;
+    for (i, line) in lines.iter().enumerate() {
+        let t = line.trim_start();
+        if t.starts_with("patch:") && !t.starts_with('#') {
+            patch_idx = Some(i);
+            break;
+        }
+    }
+    if patch_idx.is_none() {
+        for (i, line) in lines.iter().enumerate() {
+            let t = line.trim_start();
+            let uncommented = t.strip_prefix('#').map(|s| s.trim_start()).unwrap_or("");
+            if uncommented.starts_with("patch:") {
+                lines[i] = "patch:".to_owned();
+                patch_idx = Some(i);
+                break;
+            }
+        }
+    }
+    if patch_idx.is_none() {
+        if !lines.is_empty() && !lines.last().map(|l| l.trim().is_empty()).unwrap_or(true) {
+            lines.push(String::new());
+        }
+        lines.push("patch:".to_owned());
+    }
+
+    // 2) 删除这些键的既有生效行（注释行保留）
+    let keys: Vec<&str> = updates.iter().map(|(k, _)| k.as_str()).collect();
+    lines = lines
+        .into_iter()
+        .filter(|line| {
+            let t = line.trim_start();
+            if t.starts_with('#') || t.starts_with("patch:") {
+                return true;
+            }
+            let Some((k, _)) = t.split_once(':') else {
+                return true;
+            };
+            let k = k.trim().trim_matches('"').trim_matches('\'');
+            !keys.contains(&k)
+        })
+        .collect();
+
+    let patch_idx = lines
+        .iter()
+        .position(|l| l.trim_start().starts_with("patch:") && !l.trim_start().starts_with('#'))
+        .expect("patch 行必须存在");
+
+    // 3) 插入新值
+    let mut insert: Vec<String> = Vec::new();
+    for (key, value) in updates {
+        if let Some(v) = value {
+            insert.push(format!("  {key}: {}", v.to_yaml()));
+        }
+    }
+    for (offset, line) in insert.into_iter().enumerate() {
+        lines.insert(patch_idx + 1 + offset, line);
+    }
+
+    let mut out = lines.join("\n");
+    if !out.ends_with('\n') {
+        out.push('\n');
+    }
+    out
 }
 
 // ───────────────────────── 读取 ─────────────────────────
@@ -231,88 +785,18 @@ pub fn patch_custom_yaml(
     auto_select: Option<bool>,
     max_code_length: Option<u32>,
 ) -> String {
-    const KEY_AUTO: &str = "speller/auto_select";
-    const KEY_MAX: &str = "speller/max_code_length";
-
-    let mut lines: Vec<String> = existing
-        .unwrap_or("")
-        .lines()
-        .map(|l| l.to_owned())
-        .collect();
-
-    // 1) 找到（或创建）生效的 patch 行
-    let mut patch_idx: Option<usize> = None;
-    for (i, line) in lines.iter().enumerate() {
-        let t = line.trim_start();
-        if t.starts_with("patch:") && !t.starts_with('#') {
-            patch_idx = Some(i);
-            break;
-        }
-    }
-    if patch_idx.is_none() {
-        // 找被注释的 patch:
-        for (i, line) in lines.iter().enumerate() {
-            let t = line.trim_start();
-            let uncommented = t.strip_prefix('#').map(|s| s.trim_start()).unwrap_or("");
-            if uncommented.starts_with("patch:") {
-                lines[i] = "patch:".to_owned();
-                patch_idx = Some(i);
-                break;
-            }
-        }
-    }
-    if patch_idx.is_none() {
-        if !lines.is_empty() && !lines.last().map(|l| l.trim().is_empty()).unwrap_or(true) {
-            lines.push(String::new());
-        }
-        lines.push("patch:".to_owned());
-        patch_idx = Some(lines.len() - 1);
-    }
-    let patch_idx = patch_idx.expect("刚刚保证存在");
-
-    // 2) 删除已有的**生效**同名键（注释里的模板行保留）
-    let targets = [KEY_AUTO, KEY_MAX];
-    lines = lines
-        .into_iter()
-        .enumerate()
-        .filter(|(i, line)| {
-            if Some(*i) == Some(patch_idx) {
-                return true;
-            }
-            let t = line.trim_start();
-            if t.starts_with('#') {
-                return true; // 注释行一律保留
-            }
-            !targets
-                .iter()
-                .any(|k| t.starts_with(&format!("{k}:")) || t.starts_with(&format!("\"{k}\":")))
-        })
-        .map(|(_, l)| l)
-        .collect();
-
-    // 重新定位 patch（删除后行号可能变化）
-    let patch_idx = lines
-        .iter()
-        .position(|l| l.trim_start().starts_with("patch:") && !l.trim_start().starts_with('#'))
-        .expect("patch 行必须存在");
-
-    // 3) 在 patch 之后插入新键（保持输入顺序，便于阅读）
-    let mut insert: Vec<String> = Vec::new();
+    // 兼容入口：旧调用方只关心这两项，统一走通用写入逻辑
+    let mut updates: Vec<(String, Option<OptionValue>)> = Vec::new();
     if let Some(v) = auto_select {
-        insert.push(format!("  {KEY_AUTO}: {v}"));
+        updates.push(("speller/auto_select".to_owned(), Some(OptionValue::Bool(v))));
     }
     if let Some(v) = max_code_length {
-        insert.push(format!("  {KEY_MAX}: {v}"));
+        updates.push((
+            "speller/max_code_length".to_owned(),
+            Some(OptionValue::Number(v as f64)),
+        ));
     }
-    for (offset, line) in insert.into_iter().enumerate() {
-        lines.insert(patch_idx + 1 + offset, line);
-    }
-
-    let mut out = lines.join("\n");
-    if !out.ends_with('\n') {
-        out.push('\n');
-    }
-    out
+    patch_custom_values(existing, &updates)
 }
 
 // ───────────────────────── 写入：import_tables ─────────────────────────
@@ -569,5 +1053,172 @@ import_tables:
         let once = toggle_mounts(DICT, &[("xhup_dicts/xhup.primary".into(), false)]).unwrap();
         let twice = toggle_mounts(&once, &[("xhup_dicts/xhup.primary".into(), false)]);
         assert!(twice.is_none(), "重复设置同一状态不应产生改动");
+    }
+}
+
+#[cfg(test)]
+mod option_tests {
+    use super::*;
+
+    const SCHEMA: &str = "\
+schema:
+  schema_id: xhup
+speller:
+  alphabet: \"abcdefghijklmnopqrstuvwxyz;'\"
+  max_code_length: 4
+  auto_select: true   #顶字上屏
+  auto_select_pattern: ^;.$|^\\w{4}$
+  auto_clear: max_length
+menu:
+  page_size: 5
+translator:
+  dictionary: xhup
+  enable_sentence: false
+  enable_completion: false
+  max_phrase_length: 5
+  initial_quality: 0.75
+";
+
+    #[test]
+    fn reads_scalars_from_sections() {
+        assert_eq!(
+            read_scalar(SCHEMA, "speller", "max_code_length").as_deref(),
+            Some("4")
+        );
+        assert_eq!(
+            read_scalar(SCHEMA, "speller", "auto_select").as_deref(),
+            Some("true")
+        );
+        assert_eq!(
+            read_scalar(SCHEMA, "menu", "page_size").as_deref(),
+            Some("5")
+        );
+        assert_eq!(
+            read_scalar(SCHEMA, "translator", "initial_quality").as_deref(),
+            Some("0.75")
+        );
+        // 段落未声明的键返回 None
+        assert!(read_scalar(SCHEMA, "translator", "enable_encoder").is_none());
+        // 不能跨段落误读
+        assert!(read_scalar(SCHEMA, "menu", "max_code_length").is_none());
+    }
+
+    #[test]
+    fn options_are_typed_and_marked_overridden() {
+        let custom = "patch:\n  speller/auto_select: false\n  menu/page_size: 9\n";
+        let opts = read_options(SCHEMA, Some(custom));
+
+        let auto = opts
+            .iter()
+            .find(|o| o.key == "speller/auto_select")
+            .unwrap();
+        assert_eq!(auto.value, Some(OptionValue::Bool(false)));
+        assert_eq!(auto.default, Some(OptionValue::Bool(true)));
+        assert!(auto.overridden);
+
+        let page = opts.iter().find(|o| o.key == "menu/page_size").unwrap();
+        assert_eq!(page.value, Some(OptionValue::Number(9.0)));
+        assert!(page.overridden);
+        assert_eq!(page.group, "候选与选字");
+
+        // 未覆盖的项：值等于默认值，overridden=false
+        let completion = opts
+            .iter()
+            .find(|o| o.key == "translator/enable_completion")
+            .unwrap();
+        assert_eq!(completion.value, Some(OptionValue::Bool(false)));
+        assert!(!completion.overridden);
+    }
+
+    #[test]
+    fn option_catalog_has_no_duplicate_keys() {
+        let mut seen = std::collections::HashSet::new();
+        for spec in OPTION_SPECS {
+            assert!(seen.insert(spec.key), "重复的配置键：{}", spec.key);
+            assert!(
+                spec.key.contains('/'),
+                "配置键必须是 section/key：{}",
+                spec.key
+            );
+            if spec.kind == OptionKind::Enum {
+                assert!(!spec.choices.is_empty(), "枚举项必须给出取值：{}", spec.key);
+            }
+        }
+    }
+
+    #[test]
+    fn writes_bool_int_float_and_text() {
+        let updates = vec![
+            (
+                "speller/auto_select".to_owned(),
+                Some(OptionValue::Bool(false)),
+            ),
+            ("menu/page_size".to_owned(), Some(OptionValue::Number(9.0))),
+            (
+                "translator/initial_quality".to_owned(),
+                Some(OptionValue::Number(0.75)),
+            ),
+            (
+                "speller/delimiter".to_owned(),
+                Some(OptionValue::Text(" '".to_owned())),
+            ),
+        ];
+        let out = patch_custom_values(None, &updates);
+        assert!(out.contains("  speller/auto_select: false"));
+        assert!(out.contains("  menu/page_size: 9"), "整数不带小数点");
+        assert!(out.contains("  translator/initial_quality: 0.75"));
+        assert!(out.contains("  speller/delimiter: ' '"), "字符串要加引号");
+    }
+
+    #[test]
+    fn removing_a_key_deletes_the_patch_line() {
+        let existing = "patch:\n  speller/auto_select: false\n  menu/page_size: 9\n";
+        let out = patch_custom_values(Some(existing), &[("speller/auto_select".to_owned(), None)]);
+        assert!(!out.contains("speller/auto_select"), "应删除该键");
+        assert!(out.contains("menu/page_size: 9"), "其他键要保留");
+    }
+
+    #[test]
+    fn patching_twice_is_idempotent() {
+        let updates = vec![(
+            "speller/max_code_length".to_owned(),
+            Some(OptionValue::Number(6.0)),
+        )];
+        let once = patch_custom_values(None, &updates);
+        let twice = patch_custom_values(Some(&once), &updates);
+        assert_eq!(once, twice);
+        assert_eq!(twice.matches("speller/max_code_length").count(), 1);
+    }
+
+    #[test]
+    fn quoted_patch_keys_are_recognized() {
+        let custom = "patch:\n  \"speller/auto_select\": false\n";
+        assert_eq!(
+            read_patch_raw(custom, "speller/auto_select").as_deref(),
+            Some("false")
+        );
+    }
+
+    #[test]
+    fn values_roundtrip_through_yaml() {
+        let updates = vec![
+            (
+                "speller/auto_clear".to_owned(),
+                Some(OptionValue::Text("manual".to_owned())),
+            ),
+            (
+                "speller/auto_select_pattern".to_owned(),
+                Some(OptionValue::Text("^;.$|^\\w{4}$".to_owned())),
+            ),
+        ];
+        let out = patch_custom_values(None, &updates);
+        assert_eq!(
+            read_patch_raw(&out, "speller/auto_clear").as_deref(),
+            Some("manual")
+        );
+        assert_eq!(
+            read_patch_raw(&out, "speller/auto_select_pattern").as_deref(),
+            Some("^;.$|^\\w{4}$")
+        );
     }
 }

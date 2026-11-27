@@ -19,6 +19,7 @@ import type {
   AppSettings,
   FrontendInfo,
   MountToggle,
+  OptionUpdate,
   SchemeConfigSnapshot,
   SchemeConfigUpdateResult,
   SchemeInfo,
@@ -93,6 +94,7 @@ export const settingsApi = {
     autoSelect?: boolean;
     maxCodeLength?: number;
     mounts?: MountToggle[];
+    options?: OptionUpdate[];
     deployAfter?: boolean;
   }): Promise<SchemeConfigUpdateResult> =>
     backend<SchemeConfigUpdateResult>("scheme_config_update", { request }),

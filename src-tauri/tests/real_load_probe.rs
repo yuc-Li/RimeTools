@@ -208,6 +208,43 @@ fn real_scheme_config_patch_handles_actual_files() {
         }
     }
 
+    // ── 1.5) 通用配置项：在真实方案上取值 ──
+    let schema_path = user_dir.join("xhup.schema.yaml");
+    if let Ok(schema_text) = std::fs::read_to_string(&schema_path) {
+        let opts = scheme_config::read_options(&schema_text, None);
+        println!("可配置项 {} 个：", opts.len());
+        for opt in opts.iter().take(8) {
+            println!(
+                "  [{}] {} = {:?}（默认 {:?}）",
+                opt.group, opt.label, opt.value, opt.default
+            );
+        }
+        let max_len = opts
+            .iter()
+            .find(|o| o.key == "speller/max_code_length")
+            .expect("目录里应有最大码长");
+        assert_eq!(
+            max_len.value,
+            Some(rime_platform::scheme_config::OptionValue::Number(4.0)),
+            "真实方案的 max_code_length 应为 4"
+        );
+        let auto = opts
+            .iter()
+            .find(|o| o.key == "speller/auto_select")
+            .unwrap();
+        assert_eq!(
+            auto.value,
+            Some(rime_platform::scheme_config::OptionValue::Bool(true)),
+            "真实方案的 auto_select 应为 true"
+        );
+        // 方案里没有声明的项应为空值，而不是瞎猜
+        let hints = opts
+            .iter()
+            .find(|o| o.key == "translator/spelling_hints")
+            .unwrap();
+        println!("  translator/spelling_hints = {:?}", hints.value);
+    }
+
     // ── 2) 主词典：挂载项解析 + 开关往返 ──
     let dict_path = user_dir.join("xhup_dicts").join("xhup.primary.dict.yaml");
     let index_path = user_dir.join("xhup.dict.yaml");

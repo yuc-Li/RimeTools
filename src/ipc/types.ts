@@ -485,6 +485,42 @@ export interface MountEntry {
   isUserTable: boolean;
 }
 
+/** 配置项类型 */
+export type OptionKind = "bool" | "int" | "float" | "text" | "enum";
+
+/** 配置项取值（标量） */
+export type OptionValue = boolean | number | string;
+
+export interface OptionChoice {
+  value: string;
+  label: string;
+}
+
+/** 一个可配置项（表驱动，字段依据 Rime 官方文档） */
+export interface OptionState {
+  /** 补丁键，如 `speller/max_code_length` */
+  key: string;
+  group: string;
+  label: string;
+  description: string;
+  kind: OptionKind;
+  /** 当前生效值 */
+  value: OptionValue | null;
+  /** 方案文件里的原始值（用于恢复默认） */
+  default: OptionValue | null;
+  /** custom.yaml 里是否已覆盖 */
+  overridden: boolean;
+  min: number | null;
+  max: number | null;
+  choices: OptionChoice[];
+}
+
+export interface OptionUpdate {
+  key: string;
+  /** null = 删除该补丁，恢复方案默认 */
+  value: OptionValue | null;
+}
+
 export interface SchemeConfigSnapshot {
   schemaId: string;
   schemaName: string;
@@ -499,12 +535,23 @@ export interface SchemeConfigSnapshot {
   /** 主词典路径（import_tables 所在文件） */
   dictPath: string | null;
   mounts: MountEntry[];
+  /** 可配置项 */
+  options: OptionState[];
   deployHint: string;
 }
 
 export interface MountToggle {
   name: string;
   enabled: boolean;
+}
+
+export interface SchemeConfigUpdateRequest {
+  schemaId: string;
+  autoSelect?: boolean;
+  maxCodeLength?: number;
+  mounts?: MountToggle[];
+  options?: OptionUpdate[];
+  deployAfter?: boolean;
 }
 
 export interface SchemeConfigUpdateResult {

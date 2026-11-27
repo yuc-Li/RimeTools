@@ -1,26 +1,30 @@
 /**
- * 输入法配置章节（M2 设置增强）：
- * 快速上屏（`speller/auto_select`）、最大码长（`speller/max_code_length`）、
- * 词表挂载（主词典 `import_tables` 的启用/停用）。
+ * 输入法配置章节（M2 设置增强）：表驱动的方案配置编辑。
+ *
+ * 配置项目录由后端 `OPTION_SPECS` 提供（字段依据 Rime 官方文档：
+ * RimeWithSchemata、Schema.yaml 詳解、rime-prelude/default.yaml），
+ * 前端只负责按类型渲染控件，不硬编码字段名。
  *
  * 写入位置与安全性：
- * - speller 配置写 `<方案>.custom.yaml` 的 `patch:`，不直接改上游方案文件；
+ * - 所有项都写 `<方案>.custom.yaml` 的 `patch:`（Rime 官方覆盖机制），
+ *   不直接改上游方案文件；「恢复默认」= 从 patch 里删除该键；
  * - 词表挂载只能改主词典（Rime 没有词典补丁机制），仅切换行首 `# ` 前缀；
- * - 后端两条路径都有写前备份与指纹校验，文件被外部改动时拒绝覆盖。
- *
- * 当前只对小鹤音形等「码表类」方案实测；其他方案也能读，但保存前给出提示。
+ * - 两条路径都有写前备份与指纹校验，文件被外部改动时拒绝覆盖。
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toAppError } from "../../ipc/client";
 import type {
   AppError,
   MountToggle,
+  OptionState,
+  OptionUpdate,
+  OptionValue,
   SchemeConfigSnapshot,
   SchemeInfo,
 } from "../../ipc/types";
-import { settingsApi } from "./api";
 import { Badge } from "../../components/Feedback";
-import { Banner, Section, Switch } from "./sections";
+import { settingsApi } from "./api";
+import { Banner, Section } from "./sections";
 
 export function SchemeConfigSection({ schemes }: { schemes: SchemeInfo[] | null }) {
   const [schemaId, setSchemaId] = useState<string | null>(null);
@@ -30,20 +34,18 @@ export function SchemeConfigSection({ schemes }: { schemes: SchemeInfo[] | null 
   const [error, setError] = useState<AppError | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  // 草稿（与快照对照判断是否有改动）
-  const [autoSelect, setAutoSelect] = useState(false);
-  const [maxCodeLength, setMaxCodeLength] = useState<number>(4);
+  /** 草稿：只记录被改过的项；`null` 表示「恢复默认」 */
+  const [draft, setDraft] = useState<Record<string, OptionValue | null>>({});
   const [mounts, setMounts] = useState<Record<string, boolean>>({});
 
   const load = useCallback(async (id: string | null) => {
     setLoading(true);
     setError(null);
     setNotice(null);
+    setDraft({});
     try {
       const snap = await settingsApi.getSchemeConfig(id);
       setSnapshot(snap);
-      setAutoSelect(snap.speller.autoSelect ?? false);
-      setMaxCodeLength(snap.speller.maxCodeLength ?? 4);
       setMounts(Object.fromEntries(snap.mounts.map((m) => [m.name, m.enabled])));
     } catch (e) {
       setError(toAppError(e));
@@ -53,10 +55,29 @@ export function SchemeConfigSection({ schemes }: { schemes: SchemeInfo[] | null 
     }
   }, []);
 
-  // 首次进入：用当前激活方案
   useEffect(() => {
     void load(null);
   }, [load]);
+
+  /** 当前值：草稿优先，否则用快照值 */
+  const valueOf = useCallback(
+    (opt: OptionState): OptionValue | null =>
+      opt.key in draft ? draft[opt.key] : opt.value,
+    [draft],
+  );
+
+  const optionUpdates = useMemo<OptionUpdate[]>(() => {
+    if (!snapshot) return [];
+    const out: OptionUpdate[] = [];
+    for (const [key, v] of Object.entries(draft)) {
+      const opt = snapshot.options.find((o) => o.key === key);
+      if (!opt) continue;
+      // 与当前生效值相同则不算改动
+      if (v === opt.value) continue;
+      out.push({ key, value: v });
+    }
+    return out;
+  }, [draft, snapshot]);
 
   const changedMounts = useMemo<MountToggle[]>(() => {
     if (!snapshot) return [];
@@ -65,12 +86,16 @@ export function SchemeConfigSection({ schemes }: { schemes: SchemeInfo[] | null 
       .map((m) => ({ name: m.name, enabled: mounts[m.name] ?? m.enabled }));
   }, [mounts, snapshot]);
 
-  const spellerChanged =
-    snapshot !== null &&
-    ((snapshot.speller.autoSelect ?? false) !== autoSelect ||
-      (snapshot.speller.maxCodeLength ?? 4) !== maxCodeLength);
+  const dirty = optionUpdates.length > 0 || changedMounts.length > 0;
 
-  const dirty = spellerChanged || changedMounts.length > 0;
+  const setValue = (key: string, value: OptionValue | null) => {
+    setDraft((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const resetOption = (opt: OptionState) => {
+    // 恢复默认 = 从 patch 删除该键
+    setDraft((prev) => ({ ...prev, [opt.key]: null }));
+  };
 
   const save = useCallback(
     async (deployAfter: boolean) => {
@@ -81,15 +106,12 @@ export function SchemeConfigSection({ schemes }: { schemes: SchemeInfo[] | null 
       try {
         const result = await settingsApi.updateSchemeConfig({
           schemaId: snapshot.schemaId,
-          ...(spellerChanged
-            ? { autoSelect, maxCodeLength }
-            : {}),
+          ...(optionUpdates.length > 0 ? { options: optionUpdates } : {}),
           ...(changedMounts.length > 0 ? { mounts: changedMounts } : {}),
           deployAfter,
         });
         setSnapshot(result.snapshot);
-        setAutoSelect(result.snapshot.speller.autoSelect ?? false);
-        setMaxCodeLength(result.snapshot.speller.maxCodeLength ?? 4);
+        setDraft({});
         setMounts(Object.fromEntries(result.snapshot.mounts.map((m) => [m.name, m.enabled])));
 
         if (result.written.length === 0) {
@@ -111,25 +133,40 @@ export function SchemeConfigSection({ schemes }: { schemes: SchemeInfo[] | null 
         setSaving(false);
       }
     },
-    [autoSelect, changedMounts, maxCodeLength, snapshot, spellerChanged],
+    [changedMounts, optionUpdates, snapshot],
   );
 
   const activeScheme = schemes?.find((s) => s.schemaId === snapshot?.schemaId) ?? null;
   const supported = activeScheme ? activeScheme.translatorKind === "table" : true;
+
+  // 按分组渲染
+  const groups = useMemo(() => {
+    if (!snapshot) return [] as { name: string; items: OptionState[] }[];
+    const map = new Map<string, OptionState[]>();
+    for (const opt of snapshot.options) {
+      const list = map.get(opt.group) ?? [];
+      list.push(opt);
+      map.set(opt.group, list);
+    }
+    return [...map.entries()].map(([name, items]) => ({ name, items }));
+  }, [snapshot]);
+
+  const overriddenCount = snapshot?.options.filter((o) => o.overridden).length ?? 0;
 
   return (
     <Section
       title="输入法配置"
       description={
         <>
-          调整当前方案的输入行为：快速上屏（<code>speller/auto_select</code>）、
-          最大码长（<code>speller/max_code_length</code>）、以及挂载哪些词表。改完需要重新部署。
+          调整当前方案的输入行为。字段与取值依据 Rime 官方文档；
+          所有改动写进 <code>&lt;方案&gt;.custom.yaml</code> 的 <code>patch:</code>，
+          方案文件升级不会被冲掉。改完需要重新部署。
         </>
       }
       aside={
         snapshot ? (
-          <Badge tone={snapshot.spellerSource === "custom" ? "accent" : "muted"}>
-            {snapshot.spellerSource === "custom" ? "已被 custom 覆盖" : "来自方案文件"}
+          <Badge tone={overriddenCount > 0 ? "accent" : "muted"}>
+            {overriddenCount > 0 ? `已覆盖 ${overriddenCount} 项` : "全部使用方案默认值"}
           </Badge>
         ) : null
       }
@@ -173,31 +210,23 @@ export function SchemeConfigSection({ schemes }: { schemes: SchemeInfo[] | null 
 
       {snapshot ? (
         <>
-          <Switch
-            checked={autoSelect}
-            onChange={setAutoSelect}
-            label="快速上屏"
-            hint={
-              autoSelect
-                ? "编码唯一时直接上屏，不再等选词（speller/auto_select: true）。"
-                : "关闭后即使只剩一个候选也需要确认（speller/auto_select: false）。"
-            }
-          />
-
-          <label className="stg-field stg-field--inline">
-            <span className="stg-field__label">最大码长</span>
-            <input
-              className="stg-input stg-input--narrow"
-              type="number"
-              min={1}
-              max={32}
-              value={maxCodeLength}
-              onChange={(e) => setMaxCodeLength(Number.parseInt(e.target.value, 10) || 1)}
-            />
-            <span className="stg-field__hint">
-              超过这个长度不再接收编码；音形一般是 4。
-            </span>
-          </label>
+          {groups.map((group) => (
+            <div key={group.name} className="stg-optgroup">
+              <h3 className="stg-optgroup__title">{group.name}</h3>
+              <div className="stg-options">
+                {group.items.map((opt) => (
+                  <OptionRow
+                    key={opt.key}
+                    opt={opt}
+                    value={valueOf(opt)}
+                    pending={opt.key in draft}
+                    onChange={(v) => setValue(opt.key, v)}
+                    onReset={() => resetOption(opt)}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
 
           <div className="stg-mounts">
             <div className="stg-mounts__head">
@@ -282,5 +311,104 @@ export function SchemeConfigSection({ schemes }: { schemes: SchemeInfo[] | null 
         </>
       ) : null}
     </Section>
+  );
+}
+
+/** 单个配置项：按类型渲染控件，并提供「恢复默认」。 */
+function OptionRow({
+  opt,
+  value,
+  pending,
+  onChange,
+  onReset,
+}: {
+  opt: OptionState;
+  value: OptionValue | null;
+  pending: boolean;
+  onChange: (v: OptionValue | null) => void;
+  onReset: () => void;
+}) {
+  const willReset = pending && value === null;
+  const canReset = opt.overridden && !willReset;
+
+  return (
+    <div className={`stg-option ${pending ? "stg-option--pending" : ""}`}>
+      <div className="stg-option__text">
+        <div className="stg-option__label">
+          {opt.label}
+          {opt.overridden && !willReset ? <Badge tone="accent">已覆盖</Badge> : null}
+          {willReset ? <Badge tone="warn">将恢复默认</Badge> : null}
+        </div>
+        <p className="stg-option__desc">{opt.description}</p>
+        <code className="stg-option__key">{opt.key}</code>
+      </div>
+
+      <div className="stg-option__control">
+        {opt.kind === "bool" ? (
+          <label className="stg-option__switch">
+            <input
+              type="checkbox"
+              checked={value === true}
+              onChange={(e) => onChange(e.target.checked)}
+            />
+            <span>{value === true ? "开" : "关"}</span>
+          </label>
+        ) : null}
+
+        {opt.kind === "int" || opt.kind === "float" ? (
+          <input
+            className="stg-input stg-input--narrow"
+            type="number"
+            min={opt.min ?? undefined}
+            max={opt.max ?? undefined}
+            step={opt.kind === "float" ? 0.05 : 1}
+            value={typeof value === "number" ? value : ""}
+            onChange={(e) => {
+              const raw = e.target.value.trim();
+              if (raw === "") {
+                onChange(null);
+                return;
+              }
+              const n = Number(raw);
+              if (Number.isFinite(n)) onChange(n);
+            }}
+          />
+        ) : null}
+
+        {opt.kind === "enum" ? (
+          <select
+            className="stg-input"
+            value={typeof value === "string" ? value : ""}
+            onChange={(e) => onChange(e.target.value)}
+          >
+            {opt.choices.map((c) => (
+              <option key={c.value} value={c.value}>
+                {c.label}
+              </option>
+            ))}
+          </select>
+        ) : null}
+
+        {opt.kind === "text" ? (
+          <input
+            className="stg-input"
+            type="text"
+            value={typeof value === "string" ? value : ""}
+            placeholder={opt.default != null ? String(opt.default) : "（未设置）"}
+            onChange={(e) => onChange(e.target.value)}
+          />
+        ) : null}
+
+        <button
+          type="button"
+          className="ui-btn ui-btn--sm"
+          disabled={!canReset}
+          onClick={onReset}
+          title="从 custom.yaml 删除该键，回到方案文件里的值"
+        >
+          恢复默认
+        </button>
+      </div>
+    </div>
   );
 }

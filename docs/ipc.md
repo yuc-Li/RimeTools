@@ -417,7 +417,21 @@ enum Theme { System, Light, Dark }
 | `scheme_config_get` | `{ schemaId? }` | `SchemeConfigSnapshot` |
 | `scheme_config_update` | `SchemeConfigUpdate` | `{ snapshot, written[], deploy? }` |
 
-`SchemeConfigUpdate = { schemaId, autoSelect?, maxCodeLength?, mounts?, deployAfter? }`。
+`SchemeConfigUpdate = { schemaId, autoSelect?, maxCodeLength?, mounts?, options?, deployAfter? }`；
+`options: OptionUpdate[]`，`OptionUpdate = { key, value }`，`value: null` 表示删除该补丁、恢复方案默认值。
+
+**配置项目录**（`OPTION_SPECS`，字段依据 Rime 官方文档）：前端不硬编码字段名，
+后端返回每一项的类型、分组、说明、当前值、方案默认值与是否已被覆盖：
+
+| 分组 | 配置项 |
+| --- | --- |
+| 输入与上屏 | `speller/max_code_length`、`auto_select`、`auto_select_pattern`、`auto_clear`、`use_space`、`delimiter` |
+| 候选与选字 | `menu/page_size`、`menu/alternative_select_keys` |
+| 词典与学习 | `translator/enable_sentence`、`enable_completion`、`enable_user_dict`、`enable_encoder`、`encode_commit_history`、`max_phrase_length`、`initial_quality`、`spelling_hints`、`always_show_comments`、`enable_charset_filter`、`strict_spelling` |
+| 标点与按键 | `punctuator/import_preset`、`key_binder/import_preset`、`recognizer/import_preset` |
+
+列表型配置（`engine.filters`、`switches`、`key_binder.bindings`）涉及增删顺序，
+本版本不改写，避免把方案改坏。
 
 约定：
 

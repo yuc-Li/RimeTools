@@ -9,7 +9,9 @@
 
 use crate::state::AppState;
 use rime_core::types::{AppError, ErrorCode, Fingerprint, SchemeInfo};
-use rime_platform::scheme_config::{self, MountEntry, SchemeConfigSnapshot, SpellerConfig};
+use rime_platform::scheme_config::{
+    self, MountEntry, OptionState, OptionValue, SchemeConfigSnapshot, SpellerConfig,
+};
 use rime_safety::{save_file, WriteSafetyOptions};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
@@ -24,6 +26,13 @@ pub struct MountToggle {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct OptionUpdate {
+    pub key: String,
+    pub value: Option<OptionValue>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SchemeConfigUpdate {
     pub schema_id: String,
     /// 不传表示不改
@@ -31,6 +40,8 @@ pub struct SchemeConfigUpdate {
     pub max_code_length: Option<u32>,
     /// 不传表示不改
     pub mounts: Option<Vec<MountToggle>>,
+    /// 通用配置项更新（`value: null` 表示恢复默认）
+    pub options: Option<Vec<OptionUpdate>>,
     #[serde(default)]
     pub deploy_after: bool,
 }
@@ -160,6 +171,9 @@ fn build_snapshot(state: &AppState, scheme: &SchemeInfo) -> Result<SchemeConfigS
         }
     }
 
+    let options: Vec<OptionState> =
+        scheme_config::read_options(&schema_text, custom_text.as_deref());
+
     Ok(SchemeConfigSnapshot {
         schema_id: scheme.schema_id.clone(),
         schema_name: scheme.name.clone(),
@@ -170,6 +184,7 @@ fn build_snapshot(state: &AppState, scheme: &SchemeInfo) -> Result<SchemeConfigS
         speller_source: source,
         dict_path: dict_file.map(|p| p.to_string_lossy().to_string()),
         mounts,
+        options,
         deploy_hint: "改完配置后需要重新部署才会生效".to_owned(),
     })
 }
@@ -236,16 +251,30 @@ pub fn scheme_config_update(
     let dir = user_dir(&state);
     let mut written: Vec<String> = Vec::new();
 
-    // ── 1) speller 配置 → custom.yaml ──
+    // ── 0) 通用选项 → custom.yaml（与下面的专用项写同一个文件，合并一次写入）──
+    let mut custom_updates: Vec<(String, Option<OptionValue>)> = Vec::new();
+    if let Some(options) = &request.options {
+        for opt in options {
+            custom_updates.push((opt.key.clone(), opt.value.clone()));
+        }
+    }
     if request.auto_select.is_some() || request.max_code_length.is_some() {
+        // 兼容旧入参：转成通用键
+        if let Some(v) = request.auto_select {
+            custom_updates.push(("speller/auto_select".to_owned(), Some(OptionValue::Bool(v))));
+        }
+        if let Some(v) = request.max_code_length {
+            custom_updates.push((
+                "speller/max_code_length".to_owned(),
+                Some(OptionValue::Number(v as f64)),
+            ));
+        }
+    }
+
+    if !custom_updates.is_empty() {
         let path = custom_path(&dir, &scheme.schema_id);
         let existing = std::fs::read_to_string(&path).ok();
-        let next = scheme_config::patch_custom_yaml(
-            existing.as_deref(),
-            request.auto_select,
-            request.max_code_length,
-        );
-
+        let next = scheme_config::patch_custom_values(existing.as_deref(), &custom_updates);
         if existing.as_deref() != Some(next.as_str()) {
             match existing {
                 Some(_) => {
