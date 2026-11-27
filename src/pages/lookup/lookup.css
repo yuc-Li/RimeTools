@@ -1,0 +1,223 @@
+/* 反查页样式（src/pages/lookup/**）。
+   只依赖 src/styles.css 的全局变量并带兜底值；配色与工作台保持一致。 */
+
+/* 滚动容器约定：壳层 `.app__body` 是 overflow:hidden，页面根元素自带滚动 */
+.lookup {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  max-width: 1100px;
+  height: 100%;
+  min-height: 0;
+  margin: 0 auto;
+  padding: 18px 20px 20px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  color: var(--fg, #1c1c1e);
+  font-size: 13px;
+}
+
+/* ── 头部 ── */
+.lk-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.lk-title {
+  margin: 0 0 4px;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.lk-sub {
+  margin: 0;
+  max-width: 720px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--muted, #6b6b70);
+}
+
+/* ── 视图切换 ── */
+.lk-tabs {
+  display: flex;
+  gap: 6px;
+  padding: 3px;
+  border: 1px solid var(--border, #dcdce0);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--bg, #f7f7f8) 70%, var(--border, #dcdce0) 30%);
+  align-self: flex-start;
+}
+
+.lk-tab {
+  padding: 5px 14px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted, #6b6b70);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.lk-tab--active {
+  background: var(--bg, #fff);
+  color: var(--fg, #1c1c1e);
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 10%);
+}
+
+/* ── 工具条 ── */
+.lk-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.lk-input {
+  flex: 1 1 260px;
+  min-width: 200px;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--border, #dcdce0);
+  border-radius: 8px;
+  background: var(--bg, #fff);
+  color: inherit;
+  font-size: 13px;
+}
+
+.lk-input:focus-visible,
+.lk-select:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent, #2f6f4f) 45%, transparent);
+  outline-offset: 1px;
+}
+
+.lk-select {
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--border, #dcdce0);
+  border-radius: 8px;
+  background: var(--bg, #fff);
+  color: inherit;
+  font-size: 12.5px;
+}
+
+.lk-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12.5px;
+  color: var(--muted, #6b6b70);
+  user-select: none;
+}
+
+/* ── 结果 ── */
+.lk-results {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.lk-count {
+  font-size: 12px;
+  color: var(--muted, #6b6b70);
+}
+
+.lk-table {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid var(--border, #dcdce0);
+  border-radius: 10px;
+  overflow: hidden;
+  font-size: 12.5px;
+}
+
+.lk-table th,
+.lk-table td {
+  padding: 7px 10px;
+  text-align: left;
+  border-bottom: 1px solid color-mix(in srgb, var(--border, #dcdce0) 60%, transparent);
+  vertical-align: top;
+}
+
+.lk-table th {
+  background: color-mix(in srgb, var(--bg, #f7f7f8) 60%, var(--border, #dcdce0) 40%);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.lk-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.lk-table tbody tr:hover {
+  background: color-mix(in srgb, var(--accent, #2f6f4f) 5%, transparent);
+}
+
+.lk-cell-text {
+  font-weight: 500;
+}
+
+.lk-code {
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--border, #dcdce0) 40%, transparent);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+}
+
+.lk-cell-src {
+  color: var(--muted, #6b6b70);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.lk-src-origin {
+  margin-left: 3px;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--border, #dcdce0) 55%, transparent);
+  font-size: 10.5px;
+}
+
+.lk-cell-symbols {
+  font-size: 15px;
+  line-height: 1.4;
+  letter-spacing: 1px;
+}
+
+.lk-cell-mode {
+  color: var(--muted, #6b6b70);
+}
+
+/* ── 空态与页脚 ── */
+.lk-hint {
+  margin: 0;
+  padding: 18px 16px;
+  border: 1px dashed var(--border, #dcdce0);
+  border-radius: 10px;
+  color: var(--muted, #6b6b70);
+  font-size: 12.5px;
+  line-height: 1.6;
+  text-align: center;
+}
+
+.lk-footer {
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 1px solid color-mix(in srgb, var(--border, #dcdce0) 60%, transparent);
+  color: var(--muted, #6b6b70);
+  font-size: 11.8px;
+  line-height: 1.7;
+  word-break: break-all;
+}
+
+.lk-sources {
+  display: inline-flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-left: 6px;
+}

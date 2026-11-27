@@ -36,8 +36,14 @@ import type {
   FileRole,
   Fingerprint,
   GroupCount,
+  ImportPolicy,
   ManagedFileRef,
+  NewEntry,
+  EntryUpdate,
   SaveRequest,
+  TransferFormat,
+  LookupHit,
+  LookupQuery,
   SchemeInfo,
   SuggestionKind,
   SuggestionWarning,
@@ -1137,6 +1143,155 @@ const DEFAULT_MOCK_SETTINGS: AppSettings = {
 
 export let mockSettings: AppSettings = { ...DEFAULT_MOCK_SETTINGS };
 
+
+// ───────────────────────── M2：导入导出（mock 实现） ─────────────────────────
+
+interface ParsedTransferEntry {
+  text: string;
+  code: string;
+  weight: number | null;
+  lineNo: number;
+}
+
+/** 解析导入内容（与后端 rime-core::transfer 保持同样的宽松策略） */
+function parseTransferContent(content: string, format: TransferFormat): ParsedTransferEntry[] {
+  const out: ParsedTransferEntry[] = [];
+  const lines = content.replace(/^\uFEFF/, "").split(/\r?\n/);
+  for (let i = 0; i < lines.length; i += 1) {
+    const raw = lines[i];
+    const line = raw.trim();
+    if (!line || line.startsWith("#")) continue;
+    let cols: string[];
+    if (format === "csv") {
+      cols = line.split(",").map((c) => c.trim().replace(/^"|"$/g, ""));
+    } else if (format === "dictYaml") {
+      if (!raw.includes("\t")) continue;
+      cols = raw.split("\t");
+    } else {
+      cols = raw.split("\t");
+    }
+    const text = (cols[0] ?? "").trim();
+    const code = (cols[1] ?? "").trim();
+    if (!text || !code || (format === "csv" && i === 0 && text.toLowerCase() === "text")) continue;
+    const weight = cols[2]?.trim() ? Number.parseInt(cols[2], 10) : null;
+    out.push({
+      text,
+      code,
+      weight: Number.isFinite(weight) && weight !== null ? weight : null,
+      lineNo: i + 1,
+    });
+  }
+  return out;
+}
+
+interface MockImportPlan {
+  total: number;
+  added: number;
+  updated: number;
+  skipped: number;
+  unchanged: number;
+  duplicates: number;
+  conflicts: {
+    text: string;
+    code: string;
+    existingWeight: number | null;
+    incomingWeight: number | null;
+    action: string;
+  }[];
+  issues: { lineNo: number; message: string; raw: string }[];
+  skippedLines: number;
+  invalidCodes: { lineNo: number; message: string; raw: string }[];
+  weightIgnored: boolean;
+}
+
+function planImportMock(
+  file: MockFile,
+  parsed: ParsedTransferEntry[],
+  policy: ImportPolicy,
+): { plan: MockImportPlan; add: NewEntry[]; update: EntryUpdate[] } {
+  const hasWeight = file.ref.columns.includes("weight");
+  const existing = new Map<string, number | null>();
+  for (const e of file.entries) existing.set(`${e.key.text}\u0000${e.key.code}`, e.weight);
+
+  const add: NewEntry[] = [];
+  const update: EntryUpdate[] = [];
+  const seen = new Set<string>();
+  const plan: MockImportPlan = {
+    total: parsed.length,
+    added: 0,
+    updated: 0,
+    skipped: 0,
+    unchanged: 0,
+    duplicates: 0,
+    conflicts: [],
+    issues: [],
+    skippedLines: 0,
+    invalidCodes: [],
+    weightIgnored: false,
+  };
+
+  for (const item of parsed) {
+    const key = `${item.text}\u0000${item.code}`;
+    if (seen.has(key)) {
+      plan.duplicates += 1;
+      continue;
+    }
+    seen.add(key);
+
+    if (!existing.has(key)) {
+      plan.added += 1;
+      add.push({
+        text: item.text,
+        code: item.code,
+        weight: hasWeight ? item.weight : null,
+        group: null,
+      });
+      continue;
+    }
+
+    const oldWeight = existing.get(key) ?? null;
+    if (!hasWeight) {
+      plan.unchanged += 1;
+      plan.conflicts.push({
+        text: item.text,
+        code: item.code,
+        existingWeight: oldWeight,
+        incomingWeight: item.weight,
+        action: "unchanged",
+      });
+      continue;
+    }
+
+    let action: "updated" | "skipped" | "unchanged" = "skipped";
+    if (policy === "overwrite") {
+      action = oldWeight === (item.weight ?? 0) ? "unchanged" : "updated";
+    } else if (policy === "keepHigherWeight") {
+      action = item.weight !== null && item.weight > (oldWeight ?? 0) ? "updated" : "skipped";
+    }
+
+    if (action === "updated") {
+      plan.updated += 1;
+      update.push({
+        key: { fileId: file.ref.id, text: item.text, code: item.code },
+        weight: item.weight ?? 0,
+      });
+    } else if (action === "unchanged") {
+      plan.unchanged += 1;
+    } else {
+      plan.skipped += 1;
+    }
+    plan.conflicts.push({
+      text: item.text,
+      code: item.code,
+      existingWeight: oldWeight,
+      incomingWeight: item.weight,
+      action,
+    });
+  }
+
+  return { plan, add, update };
+}
+
 export async function mockInvoke<T>(
   cmd: string,
   args: Record<string, unknown> = {},
@@ -1406,6 +1561,197 @@ export async function mockInvoke<T>(
     case "settings_reset":
       mockSettings = { ...DEFAULT_MOCK_SETTINGS };
       return { ...mockSettings } as T;
+
+    // ── M2：导入导出 ──
+    case "pick_import_file":
+    case "pick_export_path":
+      // 浏览器没有系统文件对话框：导入用 <input type="file">，导出提供「复制内容」
+      return null as T;
+
+    case "dict_export": {
+      const req = args.request as {
+        fileId: FileId;
+        format: TransferFormat;
+        path: string | null;
+      };
+      const file = requireFile(req?.fileId);
+      const hasWeight = file.ref.columns.includes("weight");
+      const rows = file.entries;
+      const stem = (file.ref.path.split("/").pop() ?? "dictionary").replace(/\.(dict\.)?yaml$/, "");
+      let content = "";
+      if (req.format === "csv") {
+        content = hasWeight ? "text,code,weight\n" : "text,code\n";
+        for (const e of rows) {
+          content += hasWeight
+            ? `${e.key.text},${e.key.code},${e.weight ?? 0}\n`
+            : `${e.key.text},${e.key.code}\n`;
+        }
+      } else if (req.format === "dictYaml") {
+        content = `# Rime dictionary\n# encoding: utf-8\n\n---\nname: ${stem}\nversion: "1"\nsort: by_weight\n...\n\n`;
+        for (const e of rows) {
+          content += hasWeight && e.weight != null
+            ? `${e.key.text}\t${e.key.code}\t${e.weight}\n`
+            : `${e.key.text}\t${e.key.code}\n`;
+        }
+      } else {
+        content = hasWeight ? "# 文本\t编码\t权重\n" : "# 文本\t编码\n";
+        for (const e of rows) {
+          content += hasWeight
+            ? `${e.key.text}\t${e.key.code}\t${e.weight ?? 0}\n`
+            : `${e.key.text}\t${e.key.code}\n`;
+        }
+      }
+      const bytes = new TextEncoder().encode(content).length;
+      return {
+        path: req.path,
+        suggestedName: `${stem}.${req.format === "dictYaml" ? "dict.yaml" : req.format}`,
+        format: req.format,
+        entryCount: rows.length,
+        bytes,
+        content: req.path ? null : content,
+      } as T;
+    }
+
+    case "dict_import_preview": {
+      const req = args.request as {
+        fileId: FileId;
+        content: string | null;
+        format?: TransferFormat | null;
+        policy: ImportPolicy;
+      };
+      const file = requireFile(req?.fileId);
+      const parsed = parseTransferContent(req.content ?? "", req.format ?? "txt");
+      const { plan } = planImportMock(file, parsed, req.policy);
+      return plan as T;
+    }
+
+    case "dict_import_apply": {
+      const req = args.request as {
+        fileId: FileId;
+        content: string | null;
+        format?: TransferFormat | null;
+        policy: ImportPolicy;
+        deployAfter?: boolean;
+      };
+      const file = requireFile(req?.fileId);
+      const parsed = parseTransferContent(req.content ?? "", req.format ?? "txt");
+      const { add, update } = planImportMock(file, parsed, req.policy);
+      if (add.length === 0 && update.length === 0) {
+        throw appError("validationFailed", "没有需要写入的改动（可能全部冲突被跳过）");
+      }
+      const written = applySave(file, {
+        fileId: file.ref.id,
+        expectedFingerprint: file.fingerprint,
+        add,
+        update,
+        delete: [],
+        deployAfter: req.deployAfter ?? false,
+        reorder: null,
+      });
+      return {
+        written,
+        backup: {
+          id: `bak_${file.version}`,
+          path: `${file.ref.path}_import.bak`,
+          sourcePath: file.ref.path,
+          createdAt: MOCK_EPOCH + file.version * 61_000,
+          size: written * 24 + 512,
+          reason: "beforeWrite",
+        },
+        fingerprint: { ...file.fingerprint },
+        deploy: req.deployAfter ? mockDeploy("afterSave") : undefined,
+      } as T;
+    }
+
+    // ── M2：只读反查 ──
+    case "lookup_sources": {
+      const sources = [...files.values()].map((f) => ({
+        id: f.ref.path,
+        name: f.ref.path.split("/").pop() ?? f.ref.path,
+        origin: "user" as const,
+        schemaId: f.schemeId,
+        format: f.ref.format,
+        entryCount: f.entries.length,
+        error: null,
+      }));
+      return {
+        sources,
+        symbolSources: ["预设符号表", "用户 symbols.yaml", "方案 xhup"],
+        failed: 0,
+        userDir: RIME_DIR,
+      } as T;
+    }
+
+    case "lookup_query": {
+      const req = args.request as LookupQuery;
+      const kw = req.keyword.trim().toLowerCase();
+      const allFiles = [...files.values()];
+      if (!kw) return { hits: [], total: 0, truncated: false, scannedSources: allFiles.length } as T;
+
+      const merged = new Map<string, LookupHit>();
+      for (const file of allFiles) {
+        for (const e of file.entries) {
+          const hay = (req.mode === "text" ? e.key.text : e.key.code).toLowerCase();
+          const rank = hay === kw ? 0 : !req.exact && hay.startsWith(kw) ? 1 : !req.exact && hay.includes(kw) ? 2 : -1;
+          if (rank < 0) continue;
+          const id = `${e.key.text}\u0000${e.key.code}`;
+          const src = {
+            id: file.ref.path,
+            name: file.ref.path.split("/").pop() ?? file.ref.path,
+            origin: "user" as const,
+            schemaId: file.schemeId,
+            weight: e.weight,
+            lineNo: e.lineNo ?? 0,
+          };
+          const hit = merged.get(id);
+          if (hit) {
+            hit.rank = Math.min(hit.rank, rank);
+            hit.sources.push(src);
+          } else {
+            merged.set(id, { text: e.key.text, code: e.key.code, rank, sources: [src] });
+          }
+        }
+      }
+      const all = [...merged.values()].sort(
+        (a, b) => a.rank - b.rank || a.text.localeCompare(b.text) || a.code.localeCompare(b.code),
+      );
+      const limit = req.limit ?? 200;
+      return {
+        hits: all.slice(0, limit),
+        total: all.length,
+        truncated: all.length > limit,
+        scannedSources: allFiles.length,
+      } as T;
+    }
+
+    case "lookup_rebuild":
+      return files.size as T;
+
+    case "symbol_query": {
+      const kw = String(args.keyword ?? "").trim();
+      if (!kw) return [] as T;
+      const limit = Number(args.limit ?? 50);
+      const table = [
+        { key: "<", symbols: ["《", "〈", "«", "‹", "⟨"], scope: "预设符号表", shape: "full" as const, mode: "list" },
+        { key: "<", symbols: ["<", "≤"], scope: "预设符号表", shape: "half" as const, mode: "list" },
+        { key: ">", symbols: [">", "≥"], scope: "预设符号表", shape: "half" as const, mode: "list" },
+        { key: ",", symbols: ["，"], scope: "预设符号表", shape: "full" as const, mode: "commit" },
+        { key: ".", symbols: ["。"], scope: "预设符号表", shape: "full" as const, mode: "commit" },
+        { key: "/", symbols: ["、", "，", "。", "·"], scope: "预设符号表", shape: "half" as const, mode: "list" },
+        { key: ";", symbols: ["；", "：", "！", "？"], scope: "方案 xhup", shape: "half" as const, mode: "list" },
+        { key: "'", symbols: ["‘", "’", "“", "”"], scope: "方案 xhup", shape: "half" as const, mode: "list" },
+      ];
+      const hits = table
+        .map((entry) => {
+          const rank =
+            entry.key === kw ? 0 : entry.symbols.includes(kw) ? 1 : entry.key.includes(kw) ? 2 : entry.symbols.some((s) => s.includes(kw)) ? 3 : -1;
+          return { ...entry, rank };
+        })
+        .filter((h) => h.rank >= 0)
+        .sort((a, b) => a.rank - b.rank || a.key.localeCompare(b.key))
+        .slice(0, limit);
+      return hits as T;
+    }
 
     default:
       throw appError("internal", `mock 未实现的命令：${cmd}`, {

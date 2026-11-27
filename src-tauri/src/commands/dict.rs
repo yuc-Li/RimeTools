@@ -117,6 +117,11 @@ pub fn dict_validate(
 /// 保存：暂存 → 校验 → 备份+原子写 → 刷新 → 可选部署。
 #[tauri::command]
 pub fn dict_save(request: SaveRequest, state: State<'_, AppState>) -> Result<SaveResult, AppError> {
+    apply_save(request, &state)
+}
+
+/// 保存流程本体（`dict_save` 与 `dict_import_apply` 共用）。
+pub(crate) fn apply_save(request: SaveRequest, state: &AppState) -> Result<SaveResult, AppError> {
     let file_id = request.file_id.clone();
     let file_ref = state
         .managed_file(&file_id)
@@ -224,13 +229,13 @@ pub(crate) fn trigger_deploy(
     controller.deploy_blocking(trigger)
 }
 
-fn not_opened(file_id: &str) -> AppError {
+pub(crate) fn not_opened(file_id: &str) -> AppError {
     AppError::new(ErrorCode::NotFound, format!("词库尚未打开：{file_id}"))
         .with_hint("请先调用 dict_open")
 }
 
 /// 从受管文件所属方案取出编码约束（字符集与最大码长）。
-fn scheme_limits(state: &AppState, file_id: &FileId) -> (String, Option<u32>) {
+pub(crate) fn scheme_limits(state: &AppState, file_id: &FileId) -> (String, Option<u32>) {
     let managed = state.managed_file(file_id);
     if let Some(mf) = managed {
         // 找到挂载该文件的方案

@@ -31,6 +31,8 @@ pub struct AppState {
     pinyin: Mutex<Option<Arc<std::collections::HashMap<char, Vec<String>>>>>,
     /// 部署状态观察者（由 setup 注入，负责向 WebView emit `deploy://state`）
     deploy_observer: Mutex<Option<Arc<dyn Fn(&rime_core::types::DeployState) + Send + Sync>>>,
+    /// 反查缓存（用户目录词库 + 符号表），首次使用时惰性构建
+    lookup: Mutex<Option<crate::lookup_cache::SharedLookupCache>>,
 }
 
 impl Default for AppState {
@@ -51,6 +53,7 @@ impl AppState {
             deploy: Mutex::new(None),
             pinyin: Mutex::new(None),
             deploy_observer: Mutex::new(None),
+            lookup: Mutex::new(None),
         }
     }
 
@@ -271,5 +274,19 @@ impl AppState {
 
     fn lock(&self) -> std::sync::MutexGuard<'_, Inner> {
         self.inner.lock().unwrap_or_else(|e| e.into_inner())
+    }
+}
+
+impl AppState {
+    /// 取反查缓存（未构建时为 None）。
+    pub fn lookup_cache(&self) -> Option<crate::lookup_cache::SharedLookupCache> {
+        self.lookup.lock().ok().and_then(|guard| guard.clone())
+    }
+
+    /// 替换反查缓存。
+    pub fn set_lookup_cache(&self, cache: crate::lookup_cache::SharedLookupCache) {
+        if let Ok(mut guard) = self.lookup.lock() {
+            *guard = Some(cache);
+        }
     }
 }

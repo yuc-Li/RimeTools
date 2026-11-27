@@ -313,3 +313,138 @@ export const IPC_EVENTS = {
   frontendChange: "env://frontend-change",
   backupCreated: "backup://created",
 } as const;
+
+// ───────────────────────── 导入导出（M2） ─────────────────────────
+
+/** 导入/导出的文件格式（与后端 `TransferFormat` 对齐） */
+export type TransferFormat = "txt" | "csv" | "dictYaml";
+
+/** 冲突处理策略 */
+export type ImportPolicy = "skipExisting" | "overwrite" | "keepHigherWeight";
+
+/** 单条导入的处理结果 */
+export type ImportAction = "added" | "updated" | "skipped" | "unchanged";
+
+/** 解析阶段跳过的行（格式问题） */
+export interface ImportIssue {
+  lineNo: number;
+  message: string;
+  raw: string;
+}
+
+/** 与现有词库冲突的条目及处理方式 */
+export interface ImportConflict {
+  text: string;
+  code: string;
+  existingWeight: number | null;
+  incomingWeight: number | null;
+  action: ImportAction;
+}
+
+/** 导入预览：只做比对，不写文件 */
+export interface ImportPlan {
+  total: number;
+  added: number;
+  updated: number;
+  skipped: number;
+  unchanged: number;
+  /** 导入内容自身的重复条数 */
+  duplicates: number;
+  /** 冲突明细（最多 200 条） */
+  conflicts: ImportConflict[];
+  /** 解析阶段的问题行 */
+  issues: ImportIssue[];
+  skippedLines: number;
+  /** 编码不在字母表内或超长的条目（保存时会被拦下） */
+  invalidCodes: ImportIssue[];
+  /** 目标文件无权重列，导入的权重被忽略 */
+  weightIgnored: boolean;
+}
+
+export interface ExportResult {
+  /** 写了文件时为目标路径；只返回内容时为 null */
+  path: string | null;
+  suggestedName: string;
+  format: TransferFormat;
+  entryCount: number;
+  bytes: number;
+  /** 未指定路径时返回的内容（供复制） */
+  content: string | null;
+}
+
+// ───────────────────────── 只读反查（M2） ─────────────────────────
+
+/** 来源性质：用户目录（可编辑） / 系统预设（只读） */
+export type SourceOrigin = "user" | "system";
+
+/** 可反查的词库文件（不含条目内容） */
+export interface LookupSourceSummary {
+  id: string;
+  name: string;
+  origin: SourceOrigin;
+  schemaId: string | null;
+  format: string;
+  entryCount: number;
+  error: string | null;
+}
+
+export interface LookupSourcesResult {
+  sources: LookupSourceSummary[];
+  /** 参与符号查询的来源说明 */
+  symbolSources: string[];
+  /** 解析失败的来源数量 */
+  failed: number;
+  userDir: string;
+}
+
+/** 反查模式：按词查编码 / 按编码查词 */
+export type LookupMode = "text" | "code";
+
+export interface LookupQuery {
+  mode: LookupMode;
+  keyword: string;
+  /** true 只匹配完全相等，false 匹配前缀与包含 */
+  exact: boolean;
+  /** 限定来源（空数组 = 全部） */
+  sourceIds: string[];
+  limit: number;
+}
+
+/** 某个命中来自哪个文件 */
+export interface HitSource {
+  id: string;
+  name: string;
+  origin: SourceOrigin;
+  schemaId: string | null;
+  weight: number | null;
+  lineNo: number;
+}
+
+export interface LookupHit {
+  text: string;
+  code: string;
+  /** 0=完全匹配 1=前缀 2=包含 */
+  rank: number;
+  sources: HitSource[];
+}
+
+export interface LookupResult {
+  hits: LookupHit[];
+  /** 命中总数（可能大于 hits.length） */
+  total: number;
+  truncated: boolean;
+  scannedSources: number;
+}
+
+export type SymbolShape = "half" | "full";
+
+/** 符号查询结果：一个触发键及其能打出的符号 */
+export interface SymbolHit {
+  key: string;
+  symbols: string[];
+  scope: string;
+  shape: SymbolShape;
+  /** commit = 直接出字；list = 需 /键 选择 */
+  mode: string;
+  rank: number;
+}

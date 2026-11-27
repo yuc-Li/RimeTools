@@ -7,5 +7,7 @@ pub mod backup;
 pub mod deploy;
 pub mod dict;
 pub mod env;
+pub mod lookup;
 pub mod settings;
 pub mod suggest;
+pub mod transfer;

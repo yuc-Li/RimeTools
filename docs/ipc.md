@@ -363,6 +363,47 @@ enum Theme { System, Light, Dark }
 
 ---
 
+### 3.8 导入导出 `dict_export` / `dict_import_*`（M2）
+
+| 命令 | 入参 | 出参 |
+| --- | --- | --- |
+| `dict_export` | `ExportRequest{ fileId, format, path? }` | `ExportResult` |
+| `dict_import_preview` | `ImportPreviewRequest{ fileId, path?, content?, format?, policy }` | `ImportPlan` |
+| `dict_import_apply` | `ImportApplyRequest{ …, policy, deploy_after }` | `SaveResult` |
+| `pick_import_file` | — | `string \| null` |
+| `pick_export_path` | `{ defaultName }` | `string \| null` |
+
+`TransferFormat = "txt" | "csv" | "dictYaml"`；`ImportPolicy = "skipExisting" | "overwrite" | "keepHigherWeight"`。
+
+约定：
+
+- 导入**两段式**：`preview` 只解析并比对，返回 `ImportPlan`（新增/更新/跳过/未变化/自身重复/冲突明细/非法编码），
+  用户确认后再 `apply`；
+- `apply` 会**重新计算**计划（基于最新文件与指纹），并复用 `dict_save` 的写入流程，
+  因此同样有校验、写前备份、原子写与外部修改保护；
+- `path` 与 `content` 二选一：桌面端用路径（系统对话框），浏览器端用 `content`（`<input type=file>`）；
+- 两列文件（无权重列）导入时权重被忽略，`ImportPlan.weight_ignored` 为 true。
+
+### 3.9 只读反查 `lookup_*` / `symbol_query`（M2）
+
+| 命令 | 入参 | 出参 |
+| --- | --- | --- |
+| `lookup_sources` | — | `LookupSourcesResult` |
+| `lookup_query` | `LookupQuery{ mode, keyword, exact, sourceIds, limit }` | `LookupResult` |
+| `lookup_rebuild` | — | `number`（重建的索引文件数） |
+| `symbol_query` | `{ keyword, limit? }` | `SymbolHit[]` |
+
+约定：
+
+- 只读：不写任何文件，也不触发部署；
+- 索引范围是**用户目录**下的 `*.dict.yaml` 与 `*.txt`（排除 `build/`、`sync/`、`*.bak`），
+  系统预设不纳入，避免几十 MB 常驻内存；
+- 相同（文本, 编码）在多文件中出现时合并为一条，`sources` 列出全部来源；
+- `rank`：0 完全匹配 / 1 前缀 / 2 包含；
+- 符号表来源是系统 `symbols.yaml` + 用户 `symbols.yaml` + 各方案 `punctuator`，同名表后者覆盖前者。
+
+---
+
 ## 4. 事件
 
 | 事件 | payload | 触发时机 |
@@ -465,3 +506,4 @@ deploy_start(Manual)  ──┘    当前轮结束后补跑一次（不排队 N 
 | --- | --- | --- |
 | v1 | 2026-11-26 | 冻结首版：环境/词库/建议/配置/部署/备份/设置 七域；划词采集与跨方案导入不在内（已暂缓） |
 | v1.1 | 2026-11-26 | 兼容性增量：`DeployResult.finished_at`（部署历史需要显示完成时刻，否则只能从日志文件名反推）；`deploy_open_log` 后端已实现 |
+| v1.2 | 2026-11-27 | M2 新增两域：§3.8 导入导出（`dict_export` / `dict_import_preview` / `dict_import_apply` / 两个文件对话框）、§3.9 只读反查（`lookup_sources` / `lookup_query` / `lookup_rebuild` / `symbol_query`）。均为新增，不改动 v1 已有命令 |

@@ -40,6 +40,7 @@ import { ConfirmDialog } from "./ConfirmDialog";
 import { EditDialog, type EditPatch, type EditTarget } from "./EditDialog";
 import { EntryTable } from "./EntryTable";
 import { ExternalModifiedDialog } from "./ExternalModifiedDialog";
+import { TransferDialog } from "./TransferDialog";
 import { ipc, isMockMode } from "./api";
 import {
   addDraftAdds,
@@ -131,6 +132,9 @@ export default function Workbench() {
   const [lastSaved, setLastSaved] = useState<SaveResult | null>(null);
   const [conflict, setConflict] = useState<AppError | null>(null);
   const [externalNotice, setExternalNotice] = useState<Fingerprint | null>(null);
+
+  // ── 导入导出（M2）──
+  const [transfer, setTransfer] = useState<null | "import" | "export">(null);
 
   // ── 弹窗与提示 ──
   const [editTarget, setEditTarget] = useState<EditTarget | null>(null);
@@ -627,6 +631,24 @@ export default function Workbench() {
             <div className="wb-toolbar__actions">
               <button
                 type="button"
+                className="ui-btn"
+                onClick={() => setTransfer("import")}
+                disabled={!currentFile || readOnly || openState !== "ready"}
+                title="从 txt / csv / dict.yaml 导入词条"
+              >
+                导入
+              </button>
+              <button
+                type="button"
+                className="ui-btn"
+                onClick={() => setTransfer("export")}
+                disabled={!currentFile || openState !== "ready"}
+                title="导出为 txt / csv / dict.yaml"
+              >
+                导出
+              </button>
+              <button
+                type="button"
                 className="ui-btn ui-btn--primary"
                 onClick={() => setAddOpen(true)}
                 disabled={!currentFile || readOnly || openState !== "ready"}
@@ -868,6 +890,16 @@ export default function Workbench() {
             </div>
           ) : null}
         </>
+      ) : null}
+
+      {transfer && currentFile ? (
+        <TransferDialog
+          mode={transfer}
+          fileId={currentFile.id}
+          fileName={currentFile.path.split("/").pop() ?? "dictionary"}
+          onClose={() => setTransfer(null)}
+          onImported={requestReload}
+        />
       ) : null}
 
       {addOpen && currentFile ? (

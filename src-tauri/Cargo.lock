@@ -3145,6 +3145,7 @@ dependencies = [
  "rime-core",
  "serde",
  "serde_yaml",
+ "tempfile",
  "thiserror 2.0.21",
  "tracing",
 ]

@@ -6,6 +6,7 @@
 pub mod backup_index;
 pub mod boot;
 pub mod commands;
+mod lookup_cache;
 pub mod settings_file;
 pub mod state;
 
@@ -165,6 +166,17 @@ pub fn run() {
             commands::dict::dict_groups,
             commands::dict::dict_validate,
             commands::dict::dict_save,
+            // 导入导出（M2）
+            commands::transfer::dict_export,
+            commands::transfer::dict_import_preview,
+            commands::transfer::dict_import_apply,
+            commands::transfer::pick_import_file,
+            commands::transfer::pick_export_path,
+            // 只读反查（M2）
+            commands::lookup::lookup_sources,
+            commands::lookup::lookup_query,
+            commands::lookup::lookup_rebuild,
+            commands::lookup::symbol_query,
             // 编码建议与预览（PRD FR-3.23 / 3.24）
             commands::suggest::suggest_codes,
             commands::suggest::suggest_preview,

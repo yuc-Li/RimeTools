@@ -12,7 +12,9 @@
 
 use crate::types::{ColumnKind, FileFormat};
 
+pub mod lookup;
 pub mod store;
+pub mod transfer;
 pub mod types;
 
 mod fingerprint;

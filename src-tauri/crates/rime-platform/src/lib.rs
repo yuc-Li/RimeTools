@@ -12,6 +12,9 @@ use std::path::{Path, PathBuf};
 
 mod schema;
 
+pub mod sources;
+pub mod symbols;
+
 pub use schema::{parse_schema, SchemaParseError, SchemaRaw};
 
 /// fcitx5 用户目录（固定位置）。
