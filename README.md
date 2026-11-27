@@ -5,6 +5,8 @@
 Rime 的配置和词库都是可读的文本文件，灵活但日常维护麻烦：加个词、调个权重、改完还得手动重新部署。
 RimeTools 把这些高频操作做成图形界面，并保证改写时**不破坏你现有的文件**。
 
+当前版本 **0.1.0**，变更记录见 [CHANGELOG.md](CHANGELOG.md)。
+
 ![词库工作台](docs/screenshots/workbench.webp)
 
 ## 功能
