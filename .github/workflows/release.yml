@@ -112,8 +112,8 @@ jobs:
           tag_name: ${{ env.TAG }}
           name: RimeTools ${{ env.TAG }}
           body_path: RELEASE_NOTES.md
-          # 0.x 标记为预发布；升到 1.0.0 后自动转为正式版本
-          prerelease: ${{ startsWith(env.TAG, 'v0.') }}
+          # 带后缀的 tag（如 v0.2.0-beta.1）标记为预发布；正式版本号则为正式 Release
+          prerelease: ${{ contains(env.TAG, '-') }}
           draft: false
           files: |
             dist-pkg/*.deb

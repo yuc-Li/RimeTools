@@ -53,7 +53,7 @@
 
 也可以在 GitHub 页面手动触发（Actions → Release → Run workflow），填入已存在的 tag。
 
-`0.x` 版本会自动标记为 **Pre-release**，升到 `1.0.0` 后自动转为正式版本。
+带后缀的 tag（如 `v0.2.0-beta.1`）会自动标记为 **Pre-release**；常规版本号（如 `v0.1.0`）为正式 Release。
 
 ## 四、发布后检查
 
